@@ -1,10 +1,22 @@
-from audio.record import record_violin
-from pitch.autocorrelation import estimate_frequency
-from pitch.notes import freq_to_note
+import sounddevice as sd  # type: ignore
+from audio.record import audio_callback
 
+
+SAMPLE_RATE = 44100
+BUFFER_SIZE = 2048  # number of samples per chunk
+CHANNELS = 1
 
 if __name__ == "__main__":
-    audio_data, sample_rate = record_violin(duration=5)
-    freq = estimate_frequency(audio_data, sample_rate)
-    note = freq_to_note(freq)
-    print(f"Estimated frequency: {freq:.2f} Hz → {note}")
+    with sd.InputStream(
+        samplerate=SAMPLE_RATE,
+        channels=CHANNELS,
+        blocksize=BUFFER_SIZE,
+        callback=audio_callback,
+    ):
+        print("Real-time pitch detection started. Press Ctrl+C to stop.")
+        try:
+            # Keep the stream alive
+            while True:
+                sd.sleep(1000)  # type: ignore
+        except KeyboardInterrupt:
+            print("\nStopping real-time detection.")
