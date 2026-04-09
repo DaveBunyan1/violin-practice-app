@@ -3,6 +3,8 @@ import websockets
 from websockets.asyncio.server import ServerConnection
 from dotenv import load_dotenv
 import os
+import json
+import time
 
 from core.events import note_queue
 
@@ -28,7 +30,12 @@ async def handler(websocket: ServerConnection):
 async def broadcaster():
     while True:
         freq, note = await asyncio.to_thread(note_queue.get)
-        msg = f"{freq:.2f} Hz → {note}"
+        msg = json.dumps(
+            {
+                "type": "pitch",
+                "data": {"frequency": freq, "note": note, "time": time.time()},
+            }
+        )
 
         if connected_clients:
             await asyncio.gather(
