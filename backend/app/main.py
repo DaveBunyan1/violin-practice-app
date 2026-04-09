@@ -1,14 +1,20 @@
-from audio.record import start_audio_stream
+import audio.record as record
 from websocket.server import run as run_server
 import threading
 import asyncio
 
+from services.pipeline import handle_note
+
 
 async def main():
-    threading.Thread(target=start_audio_stream, daemon=True).start()
+    record.on_note_detected = handle_note
+    threading.Thread(target=record.start_audio_stream, daemon=True).start()
 
     await run_server()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Shutting down...")
