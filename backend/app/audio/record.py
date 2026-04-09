@@ -52,7 +52,6 @@ def audio_callback(
 
     # Remove background noise from mic etc.
     volume = np.linalg.norm(audio_chunk) / len(audio_chunk)
-    print(f"Volume: {volume}")
 
     if volume < AMBIENT_NOISE_THRESHOLD:
         return
@@ -63,3 +62,15 @@ def audio_callback(
     if note != last_note:
         note_queue.put((freq, note))
         last_note = note
+
+
+def start_audio_stream() -> None:
+    with sd.InputStream(
+        samplerate=SAMPLE_RATE,
+        blocksize=BUFFER_SIZE,
+        channels=CHANNELS,
+        callback=audio_callback,
+    ):
+        print("Audio stream started...")
+        while True:
+            pass  # keep stream alive
