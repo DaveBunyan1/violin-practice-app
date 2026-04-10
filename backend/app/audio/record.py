@@ -10,7 +10,7 @@ from pitch.notes import freq_to_note
 SAMPLE_RATE = 44100
 BUFFER_SIZE = 8192  # number of samples per chunk
 CHANNELS = 1
-AMBIENT_NOISE_THRESHOLD = 0.00000001  # Background ambient noise was all less than 1e-05, when playing volume > 0.0001
+AMBIENT_NOISE_THRESHOLD = 0.0001  # Background ambient noise was all less than 1e-05, when playing volume > 0.0001
 
 on_note_detected = None
 
