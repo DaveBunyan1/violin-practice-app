@@ -1,4 +1,11 @@
+from typing import TypedDict
 import queue
-from typing import Tuple
 
-note_queue: queue.Queue[Tuple[float, str]] = queue.Queue()
+
+class NoteEvent(TypedDict):
+    frequency: float
+    note: str
+    timestamp: float
+
+
+note_queue: queue.Queue[NoteEvent] = queue.Queue()

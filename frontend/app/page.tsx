@@ -53,10 +53,14 @@ export default function Page() {
       setConnected(true);
     };
 
-    ws.onmessage = (event) => {
-      const msg = JSON.parse(event.data);
+    // ws.onmessage = (event) => {
+    //   const msg = JSON.parse(event.data);
 
-      setData(msg.data); // matches your backend structure
+    //   setData(msg.data); // matches your backend structure
+    // };
+
+    ws.onmessage = (event) => {
+      console.log(JSON.parse(event.data));
     };
 
     ws.onclose = () => {
