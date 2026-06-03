@@ -1,6 +1,6 @@
+from models.session_controller import SessionController
 from core.events import note_queue, NoteEvent
 import time
-from services.session import session
 
 
 def handle_note(freq: float, note: str) -> None:
@@ -9,11 +9,21 @@ def handle_note(freq: float, note: str) -> None:
     note_queue.put(event)
 
 
-def process_notes():
+def process_notes(controller: SessionController):
     while True:
         event = note_queue.get()
 
         freq = event["frequency"]
         note = event["note"]
 
-        session.add_note(note, freq, expected_note=None)
+        current_time = controller.get_current_time()
+
+        expected = controller.target.get_expected_note(current_time)
+
+        session = controller.get_session()
+
+        session.add_note(
+            note=note,
+            frequency=freq,
+            expected_note=expected,
+        )

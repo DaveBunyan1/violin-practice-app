@@ -6,7 +6,7 @@ import os
 import json
 
 
-from services.session import session
+from models.session import session
 from core.events import note_queue
 
 load_dotenv()

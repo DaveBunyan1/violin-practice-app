@@ -48,7 +48,7 @@ class PracticeReport:
             return PracticeReport(0, 0, 0, [])
 
         pitch_scores = []
-        timing_scores = []
+        # timing_scores = []
 
         formatted = []
 
