@@ -1,14 +1,8 @@
 from dataclasses import dataclass, field
-from typing import List, Dict, Any
 import time
-
-
-@dataclass
-class NoteEvent:
-    note: str
-    frequency: float
-    timestamp: float
-    expected_note: str | None = None
+import threading
+from typing import List, Optional, Dict, Any
+from models.note_event import NoteEvent
 
 
 @dataclass
@@ -16,21 +10,40 @@ class PracticeSession:
     start_time: float = field(default_factory=time.time)
     notes: List[NoteEvent] = field(default_factory=list)
 
-    def add_note(self, note: str, frequency: float, expected_note: str | None = None):
-        self.notes.append(
-            NoteEvent(
-                note=note,
-                frequency=frequency,
-                timestamp=time.time() - self.start_time,
-                expected_note=expected_note,
+    def __post_init__(self) -> None:
+        # Internal lock to keep collection mutation thread-safe
+        self._lock = threading.RLock()
+
+    def add_note(
+        self,
+        note: str,
+        frequency: float,
+        relative_time: float,
+        expected_note: Optional[str] = None,
+    ) -> None:
+        """Appends a detected note event using a explicitly passed relative timestamp."""
+        with self._lock:
+            self.notes.append(
+                NoteEvent(
+                    note=note,
+                    frequency=frequency,
+                    timestamp=relative_time,
+                    expected_note=expected_note,
+                )
             )
-        )
 
-    def end(self):
-        return self.to_report()
+    def get_notes_snapshot(self) -> List[NoteEvent]:
+        """Returns a safe copy of the notes list for serialization or reading."""
+        with self._lock:
+            return list(self.notes)
 
-    def to_report(self):
-        return PracticeReport.from_session(self)
+    def end(self) -> PracticeReport:
+        with self._lock:
+            return self.to_report()
+
+    def to_report(self) -> PracticeReport:
+        with self._lock:
+            return PracticeReport.from_session(self)
 
 
 @dataclass
