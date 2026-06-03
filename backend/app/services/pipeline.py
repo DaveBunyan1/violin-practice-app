@@ -1,13 +1,7 @@
 from models.session_controller import SessionController
-from core.events import note_queue, NoteEvent, WebSocketBroadcastEvent
-import time
+from core.events import NoteEvent, WebSocketBroadcastEvent
+
 import queue
-
-
-def handle_note(freq: float, note: str) -> None:
-    event: NoteEvent = {"frequency": freq, "note": note, "timestamp": time.time()}
-
-    note_queue.put(event)
 
 
 def process_notes(
