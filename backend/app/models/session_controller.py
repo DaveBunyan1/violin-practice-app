@@ -9,10 +9,11 @@ class SessionController:
         self.practice_start: float | None = None
         self.session: PracticeSession | None = None
 
-    def start_session(self, target: PracticeTarget):
+    def start_session(
+        self,
+    ):
         self.practice_start = time.time()
         self.session = PracticeSession(start_time=self.practice_start)
-        self.target = target
 
     def get_session(self) -> PracticeSession:
         if self.session is None:
@@ -20,7 +21,7 @@ class SessionController:
         return self.session
 
     def reset_session(self):
-        self.start_session(self.target)
+        self.start_session()
 
     def get_current_time(self) -> float:
         if self.practice_start is None:
