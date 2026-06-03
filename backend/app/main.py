@@ -19,7 +19,7 @@ target = PracticeTarget(
 )
 
 controller = SessionController(target)
-controller.start_session(target)
+controller.start_session()
 
 
 async def main():

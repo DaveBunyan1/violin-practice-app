@@ -23,6 +23,7 @@ export default function Page() {
   const [connected, setConnected] = useState(false);
   const [time, setTime] = useState(0);
   const [mockNote, setMockNote] = useState<string | null>(null);
+  const [ws, setWs] = useState<WebSocket | null>(null);
 
   useEffect(() => {
     const mock = setInterval(() => {
@@ -53,12 +54,6 @@ export default function Page() {
       setConnected(true);
     };
 
-    // ws.onmessage = (event) => {
-    //   const msg = JSON.parse(event.data);
-
-    //   setData(msg.data); // matches your backend structure
-    // };
-
     ws.onmessage = (event) => {
       console.log(JSON.parse(event.data));
     };
@@ -68,8 +63,20 @@ export default function Page() {
       setConnected(false);
     };
 
+    setWs(ws);
+
     return () => ws.close();
   }, []);
+
+  const startSession = () => {
+    if (!ws) return;
+
+    ws.send(
+      JSON.stringify({
+        type: "start_session",
+      }),
+    );
+  };
 
   return (
     <div style={{ padding: 40, fontFamily: "sans-serif" }}>
@@ -95,6 +102,16 @@ export default function Page() {
           {isCorrect ? "Correct" : "Incorrect"}
         </p>
       </div>
+      <button
+        onClick={startSession}
+        style={{
+          marginTop: 20,
+          padding: "10px 20px",
+          fontSize: 16,
+        }}
+      >
+        ▶ Start Session
+      </button>
     </div>
   );
 }
