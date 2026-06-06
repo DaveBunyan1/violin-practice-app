@@ -22,6 +22,7 @@ def audio_callback(
     status_time: Any,
     status: sd.CallbackFlags,
 ) -> None:
+
     if status:
         return
 
@@ -33,8 +34,13 @@ def audio_callback(
     if volume < AMBIENT_NOISE_THRESHOLD:
         return
 
+    # print("AUDIO CALLBACK FIRED")
     freq = estimate_frequency(audio_chunk, SAMPLE_RATE)
     note = freq_to_note(freq)
+
+    # print("VOLUME:", volume)
+    # print("FREQ:", freq)
+    # print("NOTE:", note)
 
     current_timestamp = time.time()
 

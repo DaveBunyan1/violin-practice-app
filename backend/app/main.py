@@ -4,7 +4,8 @@ import queue
 
 # Core application imports
 import audio.record as record
-from core.events import NoteEvent, WebSocketBroadcastEvent
+from services.note_segmenter import NoteSegmenter
+from core.events import NoteEvent, PerformedNoteEvent, WebSocketBroadcastEvent
 from models.session_controller import SessionController
 from models.practice_target import ExpectedNote, PracticeTarget
 from services.pipeline import process_notes
@@ -26,6 +27,7 @@ target = PracticeTarget(
 )
 
 controller = SessionController(target)
+segmenter = NoteSegmenter()
 
 
 # ---------------------------------------------------
@@ -33,12 +35,19 @@ controller = SessionController(target)
 # ---------------------------------------------------
 async def main():
     # Explicitly instantiate thread-safe queues
-    inbound_queue: queue.Queue[NoteEvent] = queue.Queue()
+    segmented_queue: queue.Queue[PerformedNoteEvent] = queue.Queue()
     broadcast_queue: queue.Queue[WebSocketBroadcastEvent] = queue.Queue()
+
+    def on_segmented(note: PerformedNoteEvent):
+        print("SEGMENTED NOTE:", note)
+        segmented_queue.put(note)
+
+    segmenter.set_callback(on_segmented)
 
     # Wire up the audio recorder callback to put raw events into the inbound queue
     def handle_incoming_audio_note(event: NoteEvent) -> None:
-        inbound_queue.put(event)
+        # print("GOT NOTE EVENT:", event)
+        segmenter.process(event)
 
     record.on_note_detected = handle_incoming_audio_note
 
@@ -48,7 +57,7 @@ async def main():
     # B. Spin up the Note Processing Pipeline Thread
     threading.Thread(
         target=process_notes,
-        args=(controller, inbound_queue, broadcast_queue),
+        args=(controller, segmented_queue, broadcast_queue),
         daemon=True,
     ).start()
 

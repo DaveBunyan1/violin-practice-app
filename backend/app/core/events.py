@@ -17,3 +17,9 @@ class BroadcastEventData(TypedDict):
 class WebSocketBroadcastEvent(TypedDict):
     type: str  # e.g., "pitch"
     data: BroadcastEventData
+
+
+class PerformedNoteEvent(TypedDict):
+    note: str
+    frequency: float
+    timestamp: float  # onset time
