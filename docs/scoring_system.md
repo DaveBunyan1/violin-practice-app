@@ -190,6 +190,19 @@ The Note Segmenter becomes responsible for converting a continuous stream of pit
 
 The Scoring Engine can then evaluate those note events against the expected target.
 
+### Current Limitation
+
+The current segmentation implementation emits a note when a note change
+is detected.
+
+As a result, the final note of a performance is not emitted until either:
+
+- A subsequent note is played, or
+- The session ends.
+
+Future iterations will add explicit note-finalization logic to handle
+the final note in a phrase.
+
 ---
 
 ## Future Challenges
