@@ -32,8 +32,6 @@ class NoteSegmenter:
         freq = event["frequency"]
         timestamp = event["timestamp"]
 
-        print(f"current={self._current_note}, " f"incoming={note}")
-
         # First ever note
         if self._current_note is None:
             self._start_new_note(note, freq, timestamp)
@@ -62,7 +60,6 @@ class NoteSegmenter:
         self._current_frequency = freq
 
     def _emit_current_note(self, timestamp: float) -> None:
-        # print("ACTUAL EMIT:", self._current_note)
         if self._callback is None:
             return
 

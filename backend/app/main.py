@@ -39,14 +39,12 @@ async def main():
     broadcast_queue: queue.Queue[WebSocketBroadcastEvent] = queue.Queue()
 
     def on_segmented(note: PerformedNoteEvent):
-        print("SEGMENTED NOTE:", note)
         segmented_queue.put(note)
 
     segmenter.set_callback(on_segmented)
 
     # Wire up the audio recorder callback to put raw events into the inbound queue
     def handle_incoming_audio_note(event: NoteEvent) -> None:
-        # print("GOT NOTE EVENT:", event)
         segmenter.process(event)
 
     record.on_note_detected = handle_incoming_audio_note
