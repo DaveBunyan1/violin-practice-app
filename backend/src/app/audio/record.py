@@ -3,9 +3,9 @@ from typing import Any, Callable, Optional
 import numpy as np
 import sounddevice as sd  # type: ignore
 
-from pitch.autocorrelation import estimate_frequency
-from pitch.notes import freq_to_note
-from core.events import NoteEvent
+from app.pitch.autocorrelation import estimate_frequency
+from app.pitch.notes import freq_to_note
+from app.core.events import PitchObservationEvent
 
 SAMPLE_RATE = 44100
 BUFFER_SIZE = 8192  # number of samples per chunk
@@ -13,7 +13,7 @@ CHANNELS = 1
 AMBIENT_NOISE_THRESHOLD = 0.0001  # Background ambient noise was all less than 1e-05, when playing volume > 0.0001
 
 # Type-hint the callback target clearly
-on_note_detected: Optional[Callable[[NoteEvent], None]] = None
+on_note_detected: Optional[Callable[[PitchObservationEvent], None]] = None
 
 
 def audio_callback(
@@ -41,7 +41,7 @@ def audio_callback(
 
     global on_note_detected
     if on_note_detected:
-        event: NoteEvent = {
+        event: PitchObservationEvent = {
             "frequency": freq,
             "note": note,
             "timestamp": current_timestamp,

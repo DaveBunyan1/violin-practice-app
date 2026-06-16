@@ -37,52 +37,60 @@ Before these questions can be answered, the system must first determine what not
 
 ## System Architecture Overview
 
-To generate meaningful performance feedback, the system processes audio input through a multi-stage pipeline. Each stage produces a progressively more structured representation of the performance.
+To generate meaningful performance feedback, the system processes audio input through a multi-stage execution pipeline. Each stage serves as a deterministic boundary, transforming the acoustic input into a progressively more structured and high-level representation of the musical performance.
 
 ```text
 Audio Input
     ↓
-Pitch Detection
+[Stage 1] Pitch Detection
     ↓
-Note Segmentation
+[Stage 2] Note Segmentation
     ↓
-Sequence Alignment
+[Stage 3] Sequence Alignment
     ↓
-Performance Evaluation
+[Stage 4] Performance Evaluation
     ↓
-Score Aggregation & Reporting
+[Stage 5] Score Aggregation & Reporting
 ```
 
-Each stage has a clearly defined responsibility and produces an output consumed by the next stage.
+Each stage operates with absolute separation of concerns, consuming the data structures emitted by the immediate upstream process.
 
 ---
 
-## Stage 1: Pitch Detection (Existing System)
+## Stage 1: Pitch Detection (Ingestion Layer)
 
-The pitch detection layer produces a continuous stream of pitch observations.
+### Responsibility
 
-These observations are time-stamped frequency estimates, not musical notes.
+Process raw digital audio frames to estimate the fundamental frequency ($f_0$) of the violin in real-time, outputting a continuous time-series stream of raw pitch observations.
 
-Example output:
+### Functional Characteristics
 
-```text
-(A4, t=0.01)
-(A4, t=0.03)
-(A4, t=0.05)
-(B4, t=0.80)
+- **Sub-Musical Abstraction:** This layer does not interpret musical structure, note boundaries, or tempo. It functions purely as a mathematical frequency estimator.
+
+- **Granular Time-Series:** Outputs are generated at uniform intervals determined by the audio frame hops, providing high-density acoustic data.
+
+### Representation Data Example
+
+The ingestion layer maps specific frequency bands to their closest musical note equivalents alongside their absolute temporal positions:
+
+```JSON
+[
+  { "note": "A4", "frequency": 440.12, "timestamp": 0.01 },
+  { "note": "A4", "frequency": 439.85, "timestamp": 0.03 },
+  { "note": "A4", "frequency": 440.01, "timestamp": 0.05 },
+  { "note": "B4", "frequency": 493.52, "timestamp": 0.08 }
+]
 ```
-
-This layer does not interpret musical structure.
 
 ---
 
 ## Stage 2: Note Segmentation
 
-#### Responsibility
+### Responsibility
 
-Convert continuous pitch observations into discrete musical note events.
+Convert continuous stream of raw pitch observations into stable, discrete musical note events.
 
-#### Input
+### Input
 
 Stream of pitch observations:
 
@@ -90,7 +98,7 @@ Stream of pitch observations:
 (pitch, timestamp)
 ```
 
-#### Output
+### Output
 
 Performed notes:
 
@@ -103,23 +111,31 @@ Performed notes:
 }
 ```
 
-#### Core Requirement
+### Core Requirement
 
-A new note is created when:
+A new note event is finalized and emitted only when:
 
-- pitch changes AND
+- The observed pitch changes from the currently committed note AND
 - the new pitch remains stable for a configurable threshold duration
 
-#### Design Principle
+### Design Principle
 
-This stage performs temporal clustering of pitch data, not scoring or evaluation.
+This stage acts purely as a temporal clustering filter for raw acoustic data. It is decoupled from any downstream musical evaluation, scoring, or tempo matching.
 
-Important Limitation
+### Architectural Constraints & Limitations
 
-- The final note in a performance may not be immediately closed until:
+- **Edge-Triggered Finalization:** Because note boundaries are determined by transitions, the final note of a performance session cannot be immediately finalized and emitted until either a new note/silence event is registered, or the performance session explicitly terminates.
 
-- a new note is detected, or
-  the session ends
+### Architectural Evolution: Debouncing Pitch Jitter
+
+An initial naive implementation tracked a single timestamp of the last detected note change. However, live acoustic streams from a violin contain high-frequency pitch jitter and transient noise during bow changes. The naive approach failed because brief, single-frame outliers corrupted the transition timer state.
+
+To resolve this, the `NoteSegmenter` was refactored into a **2-State Confirmation Model** (a software debouncer):
+
+1. **Committed State:** The note currently recognized as active and being sustained.
+2. **Candidate State:** A new pitch detection under quarantine.
+
+A candidate note must continuously persist across incoming audio frames for `>= stability_threshold` seconds before the state machine executes a transition, finalizes the previous note, and commits the new pitch. If the stream reverts to the committed note before the threshold is met, the candidate is discarded as background noise.
 
 ---
 

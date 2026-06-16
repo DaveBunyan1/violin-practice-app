@@ -1,12 +1,12 @@
 from app.models.session_controller import SessionController
-from app.core.events import NoteEvent, WebSocketBroadcastEvent
+from app.core.events import PitchObservationEvent, WebSocketBroadcastEvent
 
 import queue
 
 
 def process_notes(
     controller: SessionController,
-    inbound_queue: queue.Queue[NoteEvent],
+    inbound_queue: queue.Queue[PitchObservationEvent],
     websocket_broadcast_queue: queue.Queue[WebSocketBroadcastEvent],
 ) -> None:
     """

@@ -1,8 +1,8 @@
 import time
 import threading
 from typing import Optional
-from models.session import PracticeSession
-from models.practice_target import PracticeTarget
+from app.models.session import PracticeSession
+from app.models.practice_target import PracticeTarget
 
 
 class SessionController:
