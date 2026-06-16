@@ -141,42 +141,55 @@ A candidate note must continuously persist across incoming audio frames for `>= 
 
 # To be reviewed
 
-Stage 3: Sequence Alignment
-Responsibility
+## Stage 3: Sequence Alignment
+
+### Responsibility
 
 Match performed notes to expected musical notes.
 
-Problem Type
+### Problem Type
 
 This is a sequence alignment problem, not a direct comparison problem.
 
 The system must handle:
 
-missed notes
-extra notes
-timing shifts
-imperfect detection boundaries
-Input
+- missed notes
+- extra notes
+- timing shifts
+- imperfect detection boundaries
+
+### Input
 
 Expected notes:
 
+```python
 [{pitch, start_time}]
+```
 
 Performed notes:
 
+```python
 [{pitch, start_time, end_time}]
-Output
+```
+
+### Output
 
 Aligned note pairs:
 
+```python
 [
 (expected_note, performed_note | None)
 ]
-Design Note
+```
+
+### Design Note
 
 Alignment is responsible for determining musical intent correspondence, not evaluating correctness.
 
-Stage 4: Performance Evaluation
+---
+
+## Stage 4: Performance Evaluation
+
 Responsibility
 
 Compute quantitative accuracy metrics for each aligned pair.
@@ -202,7 +215,11 @@ pitch_score: float,
 timing_score: float,
 weighted_score: float
 }
-Stage 5: Score Aggregation
+
+---
+
+## Stage 5: Score Aggregation
+
 Responsibility
 
 Aggregate all evaluated notes into meaningful performance metrics.

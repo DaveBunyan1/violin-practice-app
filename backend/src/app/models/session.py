@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 import time
 import threading
 from typing import List, Optional, Dict, Any
-from models.note_event import NoteEvent
+from app.models.note_event import NoteEvent
 
 
 @dataclass
