@@ -23,3 +23,16 @@ class PerformedNoteEvent(TypedDict):
     note: str
     frequency: float
     timestamp: float  # onset time
+
+
+class AlignedNote(TypedDict):
+    expected_note: str
+    performed_note: Optional[str]
+
+    expected_time: float
+    performed_time: Optional[float]
+
+    pitch_error_cents: Optional[float]
+    time_error: Optional[float]
+
+    match_quality: float

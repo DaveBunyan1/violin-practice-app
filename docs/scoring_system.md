@@ -33,18 +33,208 @@ Given this information, the player can pinpoint problem areas in a specific piec
 
 Before these questions can be answered, the system must first determine what notes the player actually performed.
 
-To produce meaningful feedback, the system must solve several problems in sequence.
+---
 
-1. Determine which notes were actually performed.
-2. Align performed notes with expected notes.
-3. Evaluate pitch accuracy.
-4. Evaluate timing accuracy.
-5. Aggregate results into performance metrics.
-6. Present feedback to the player.
+## System Architecture Overview
 
-Each stage depends on the successful completion of the previous stage.
+To generate meaningful performance feedback, the system processes audio input through a multi-stage pipeline. Each stage produces a progressively more structured representation of the performance.
 
-Although the end goal is performance evaluation, the system cannot evaluate a performance until it can reliably identify the individual notes that were played. For this reason, note segmentation is the first challenge to solve.
+```text
+Audio Input
+    ↓
+Pitch Detection
+    ↓
+Note Segmentation
+    ↓
+Sequence Alignment
+    ↓
+Performance Evaluation
+    ↓
+Score Aggregation & Reporting
+```
+
+Each stage has a clearly defined responsibility and produces an output consumed by the next stage.
+
+---
+
+## Stage 1: Pitch Detection (Existing System)
+
+The pitch detection layer produces a continuous stream of pitch observations.
+
+These observations are time-stamped frequency estimates, not musical notes.
+
+Example output:
+
+```text
+(A4, t=0.01)
+(A4, t=0.03)
+(A4, t=0.05)
+(B4, t=0.80)
+```
+
+This layer does not interpret musical structure.
+
+---
+
+## Stage 2: Note Segmentation
+
+#### Responsibility
+
+Convert continuous pitch observations into discrete musical note events.
+
+#### Input
+
+Stream of pitch observations:
+
+```python
+(pitch, timestamp)
+```
+
+#### Output
+
+Performed notes:
+
+```python
+{
+  pitch: int,
+  start_time: float,
+  end_time: float,
+  confidence: float
+}
+```
+
+#### Core Requirement
+
+A new note is created when:
+
+- pitch changes AND
+- the new pitch remains stable for a configurable threshold duration
+
+#### Design Principle
+
+This stage performs temporal clustering of pitch data, not scoring or evaluation.
+
+Important Limitation
+
+- The final note in a performance may not be immediately closed until:
+
+- a new note is detected, or
+  the session ends
+
+---
+
+# To be reviewed
+
+Stage 3: Sequence Alignment
+Responsibility
+
+Match performed notes to expected musical notes.
+
+Problem Type
+
+This is a sequence alignment problem, not a direct comparison problem.
+
+The system must handle:
+
+missed notes
+extra notes
+timing shifts
+imperfect detection boundaries
+Input
+
+Expected notes:
+
+[{pitch, start_time}]
+
+Performed notes:
+
+[{pitch, start_time, end_time}]
+Output
+
+Aligned note pairs:
+
+[
+(expected_note, performed_note | None)
+]
+Design Note
+
+Alignment is responsible for determining musical intent correspondence, not evaluating correctness.
+
+Stage 4: Performance Evaluation
+Responsibility
+
+Compute quantitative accuracy metrics for each aligned pair.
+
+Metrics
+
+Each aligned pair produces:
+
+Pitch accuracy
+Timing deviation
+Confidence weighting
+
+Example:
+
+pitch_error = |expected_pitch - performed_pitch|
+timing_error = |expected_time - performed_time|
+Output
+
+Per-note evaluation results:
+
+{
+pitch_score: float,
+timing_score: float,
+weighted_score: float
+}
+Stage 5: Score Aggregation
+Responsibility
+
+Aggregate all evaluated notes into meaningful performance metrics.
+
+Outputs
+
+The system produces:
+
+Overall performance score
+Note accuracy score
+Timing accuracy score
+Missed note penalties
+Extra note penalties
+Design Principle
+
+Scoring is aggregation-only.
+It does not perform alignment or segmentation.
+
+Accessibility Requirement
+
+All performance feedback must avoid binary visual encoding (e.g. red/green only).
+
+Instead, metrics should be represented using a continuous color scale (red → blue) to support colorblind accessibility and preserve gradient interpretation of performance quality.
+
+Future Extensions (Non-Core Features)
+
+The following features are explicitly out of scope for the current scoring system but may be added in future iterations:
+
+Expressive Performance Analysis
+vibrato detection
+articulation analysis
+bow pressure inference
+phrasing detection
+Physical Performance Analysis
+posture tracking
+bow alignment tracking
+ergonomics feedback
+Higher-Level Musical Intelligence
+phrasing structure evaluation
+stylistic interpretation scoring
+teacher-style qualitative feedback
+Key Design Principle
+
+Each stage in the pipeline should be independently testable and replaceable.
+
+No stage should depend on assumptions about internal logic of other stages—only their defined input/output contracts.
+
+# Review End
 
 ---
 
