@@ -1,6 +1,6 @@
 import time
 from typing import Optional, Callable
-from core.events import NoteEvent, PerformedNoteEvent
+from app.core.events import NoteEvent, PerformedNoteEvent
 
 
 class NoteSegmenter:

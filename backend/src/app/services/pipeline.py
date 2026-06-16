@@ -1,5 +1,5 @@
-from models.session_controller import SessionController
-from core.events import NoteEvent, WebSocketBroadcastEvent
+from app.models.session_controller import SessionController
+from app.core.events import NoteEvent, WebSocketBroadcastEvent
 
 import queue
 
