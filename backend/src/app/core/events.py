@@ -49,3 +49,12 @@ class AlignedNote(TypedDict):
     time_error: Optional[float]
 
     match_quality: float
+
+
+# 5. Scoring Layer
+class ScoreResult(TypedDict):
+    total_score: float
+    pitch_accuracy: float
+    timing_accuracy: float
+    notes_hit: int
+    notes_total: int

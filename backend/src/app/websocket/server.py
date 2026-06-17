@@ -8,8 +8,8 @@ from dotenv import load_dotenv
 import websockets
 from websockets.asyncio.server import ServerConnection
 
-from models.session_controller import SessionController
-from core.events import WebSocketBroadcastEvent
+from app.models.session_controller import SessionController
+from app.core.events import WebSocketBroadcastEvent
 
 # ---------------------------------------------------
 # 1. Configuration & Global State
