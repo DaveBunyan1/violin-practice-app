@@ -3,11 +3,13 @@ import threading
 from typing import Optional
 from app.models.session import PracticeSession
 from app.models.practice_target import PracticeTarget
+from app.services.note_segmenter import NoteSegmenter
 
 
 class SessionController:
-    def __init__(self, target: PracticeTarget) -> None:
+    def __init__(self, target: PracticeTarget, segmenter: NoteSegmenter) -> None:
         self.target = target
+        self._segmenter = segmenter
 
         # Guard session state changes across WebSocket and processing threads
         self._lock = threading.RLock()
@@ -16,7 +18,8 @@ class SessionController:
     def start_session(self) -> None:
         """Starts a fresh practice session. Threads calling get_session will block momentarily during initialization."""
         with self._lock:
-            self._session = PracticeSession(start_time=time.time())
+            self._session = PracticeSession(start_time=time.perf_counter())
+            self._segmenter.reset()
 
     def get_session(self) -> PracticeSession:
         """
@@ -27,6 +30,10 @@ class SessionController:
             if self._session is None:
                 raise RuntimeError("Session not started")
             return self._session
+
+    def end_session(self):
+        session = self.get_session()
+        return session
 
     def reset_session(self):
         """Explicit wrapper to restart the session state cleanly."""

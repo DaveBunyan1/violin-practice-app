@@ -67,6 +67,15 @@ class NoteSegmenter:
                 timestamp=self._candidate_start_time,
             )
 
+    def reset(self):
+        self._current_note = None
+        self._current_frequency = None
+        self._note_start_time = None
+
+        self._candidate_note = None
+        self._candidate_frequency = None
+        self._candidate_start_time = None
+
     def flush(self, timestamp: float) -> None:
         """
         Finalize the current note at end of stream.

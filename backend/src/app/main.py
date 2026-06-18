@@ -30,8 +30,8 @@ target = PracticeTarget(
     ],
 )
 
-controller = SessionController(target)
 segmenter = NoteSegmenter()
+controller = SessionController(target, segmenter)
 
 
 def run_segmentation_pipeline(
@@ -41,12 +41,10 @@ def run_segmentation_pipeline(
     Worker Loop Thread: Pulls raw observations from the queue
     and passes them to the segmenter's state machine.
     """
-    print("SEG THREAD ALIVE")
     while True:
         try:
             # Block until a raw pitch event is available from the microphone thread
             raw_event = inbound_raw_queue.get(timeout=1.0)
-            print("SEG INPUT:", raw_event)
             segmenter.process(raw_event)
             inbound_raw_queue.task_done()
         except queue.Empty:

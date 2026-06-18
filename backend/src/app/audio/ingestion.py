@@ -12,7 +12,7 @@ from app.core.events import PitchObservationEvent
 SAMPLE_RATE = 44100
 BUFFER_SIZE = 8192  # Samples per chunk
 CHANNELS = 1
-AMBIENT_NOISE_THRESHOLD = 100
+AMBIENT_NOISE_THRESHOLD = 0.0001
 
 
 class AudioIngestionStream:

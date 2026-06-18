@@ -38,3 +38,6 @@ class PracticeTarget:
                 break
 
         return current
+
+    def get_expected_sequence(self) -> list[ExpectedNote]:
+        return self.notes
