@@ -28,15 +28,15 @@ Microphone ───► │ PitchObservationEvent     │
                               │
           ┌───────────────────┴───────────────────┐
           ▼                                       ▼
-Live path (real-time)                  Session path (batch)
+Live path (real-time)                    Session path (batch)
           ▼                                       ▼
-LiveDashboardMetrics                 PerformedNoteEvent
+LiveDashboardMetrics                     PerformedNoteEvent
           ▼                                       ▼
-WebSocket UI                         SessionController storage
+WebSocket UI                           SessionController storage
                                                   ▼
-                                   Alignment + Scoring Engine
+                                       Alignment + Scoring Engine
                                                   ▼
-                                        ScoreResult (end)
+                                          ScoreResult (end)
 ```
 
 ---
