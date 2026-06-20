@@ -61,24 +61,24 @@ Each stage operates with absolute separation of concerns, consuming the data str
 
 ### Responsibility
 
-Process raw digital audio frames to estimate the fundamental frequency ($f_0$) of the violin in real-time, outputting a continuous time-series stream of raw pitch observations.
+Process raw digital audio frames to estimate the fundamental frequency ($f_0$) of the violin in real-time, outputting a continuous time-series stream of raw pitch observations alongside their deviation from equal temperament.
 
 ### Functional Characteristics
 
-- **Sub-Musical Abstraction:** This layer does not interpret musical structure, note boundaries, or tempo. It functions purely as a mathematical frequency estimator.
+- **Sub-Musical Abstraction:** This layer does not interpret musical structure, note boundaries, or tempo. It functions purely as a mathematical frequency estimator and geometric error computer.
 
-- **Granular Time-Series:** Outputs are generated at uniform intervals determined by the audio frame hops, providing high-density acoustic data.
+- **Granular Time-Series:** Outputs are generated at uniform intervals determined by the audio frame hops, providing high-density acoustic and precision data.
 
 ### Representation Data Example
 
-The ingestion layer maps specific frequency bands to their closest musical note equivalents alongside their absolute temporal positions:
+The ingestion layer maps specific frequency bands to their closest musical note equivalents, computes deviation from equal temperament as diagnostic metadata ($1\text{ semitone} = 100\text{ cents}$), and records their absolute temporal positions:
 
 ```JSON
 [
-  { "note": "A4", "frequency": 440.12, "timestamp": 0.01 },
-  { "note": "A4", "frequency": 439.85, "timestamp": 0.03 },
-  { "note": "A4", "frequency": 440.01, "timestamp": 0.05 },
-  { "note": "B4", "frequency": 493.52, "timestamp": 0.08 }
+  { "note": "A4", "frequency": 440.12, "timestamp": 0.01, "pitch_error_cents": 0.5},
+  { "note": "A4", "frequency": 439.85, "timestamp": 0.03, "pitch_error_cents": -0.6},
+  { "note": "A4", "frequency": 440.01, "timestamp": 0.05, "pitch_error_cents": 0.0},
+  { "note": "B4", "frequency": 493.52, "timestamp": 0.08, "pitch_error_cents": -1.3}
 ]
 ```
 
