@@ -376,5 +376,7 @@ These are future directions only:
 
 ## 8. Core Design Principle (v0)
 
+<br/>
+
 > [!NOTE]
 > Each layer transforms data exactly once and adds structure — it does not reinterpret prior meaning.
