@@ -10,6 +10,7 @@ from websockets.asyncio.server import ServerConnection
 
 from app.models.session_controller import SessionController
 from app.core.events import WebSocketBroadcastEvent
+from app.scoring.scoring_engine import ScoreEngine
 
 # ---------------------------------------------------
 # 1. Configuration & Global State
@@ -26,7 +27,7 @@ connected_clients: set[ServerConnection] = set()
 # 2. Inbound Message Handler Factory
 # ---------------------------------------------------
 def create_handler(
-    controller: SessionController,
+    controller: SessionController, score_engine: ScoreEngine
 ) -> Callable[[ServerConnection], Coroutine[Any, Any, None]]:
     async def handler(websocket: ServerConnection) -> None:
         print(f"Client connected: {websocket.remote_address}")
@@ -45,6 +46,14 @@ def create_handler(
                     elif msg_type == "reset_session":
                         controller.reset_session()
                         print("Session reset via frontend request.")
+
+                    elif msg_type == "end_session":
+                        controller.end_session()
+                        score = score_engine.compute()
+
+                        await websocket.send(
+                            json.dumps({"type": "score_result", "data": score})
+                        )
                     else:
                         print(f"Unhandled WebSocket message type: {msg_type}")
 

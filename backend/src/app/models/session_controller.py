@@ -14,12 +14,14 @@ class SessionController:
         # Guard session state changes across WebSocket and processing threads
         self._lock = threading.RLock()
         self._session: Optional[PracticeSession] = None
+        self._active: bool
 
     def start_session(self) -> None:
         """Starts a fresh practice session. Threads calling get_session will block momentarily during initialization."""
         with self._lock:
             self._session = PracticeSession(start_time=time.perf_counter())
             self._segmenter.reset()
+            self._active = True
 
     def get_session(self) -> PracticeSession:
         """
@@ -31,8 +33,12 @@ class SessionController:
                 raise RuntimeError("Session not started")
             return self._session
 
+    def get_active_state(self) -> bool:
+        return self._active
+
     def end_session(self):
         session = self.get_session()
+        self._active = False
         return session
 
     def reset_session(self):

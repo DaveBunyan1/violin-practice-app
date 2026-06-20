@@ -4,6 +4,7 @@ import queue
 
 # Core application imports
 from app.audio.ingestion import AudioIngestionStream
+from app.scoring.scoring_engine import ScoreEngine
 from app.services.note_segmenter import NoteSegmenter
 from app.core.events import (
     PitchObservationEvent,
@@ -23,15 +24,16 @@ from app.websocket.server import run as run_server, create_handler, broadcaster
 target = PracticeTarget(
     mode="piece",
     notes=[
-        ExpectedNote("A4", 0),
-        ExpectedNote("B4", 1),
-        ExpectedNote("C#5", 2),
-        ExpectedNote("D5", 3),
+        ExpectedNote("G3", 1),
+        ExpectedNote("D4", 2),
+        ExpectedNote("A4", 3),
+        ExpectedNote("E5", 4),
     ],
 )
 
 segmenter = NoteSegmenter()
 controller = SessionController(target, segmenter)
+score_engine = ScoreEngine(controller)
 
 
 def run_segmentation_pipeline(
@@ -93,7 +95,7 @@ async def main():
     # ---------------------------------------------------
     # Async WebSocket Infrastructure Context
     # ---------------------------------------------------
-    handler = create_handler(controller)
+    handler = create_handler(controller, score_engine)
     broadcaster_task_factory = lambda: broadcaster(broadcast_queue)
 
     await run_server(handler, broadcaster_task_factory)

@@ -16,6 +16,7 @@ export default function Page() {
   const [connected, setConnected] = useState(false);
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [latest, setLatest] = useState<PitchData | null>(null);
+  const [score, setScore] = useState<any>(null);
 
   useEffect(() => {
     const socket = new WebSocket(`ws://${HOST}:${PORT}`);
@@ -30,6 +31,10 @@ export default function Page() {
 
       if (msg.type === "pitch") {
         setLatest(msg.data);
+      }
+
+      if (msg.type === "score_result") {
+        setScore(msg.data);
       }
     };
 
@@ -53,6 +58,16 @@ export default function Page() {
     );
   };
 
+  const endSession = () => {
+    if (!ws) return;
+
+    ws.send(
+      JSON.stringify({
+        type: "end_session",
+      }),
+    );
+  };
+
   return (
     <div style={{ padding: 40, fontFamily: "sans-serif" }}>
       <h1>🎻 Violin Practice</h1>
@@ -69,6 +84,27 @@ export default function Page() {
       >
         ▶ Start Session
       </button>
+
+      <button
+        onClick={endSession}
+        style={{
+          marginTop: 10,
+          padding: "10px 20px",
+          fontSize: 16,
+          backgroundColor: "#f44336",
+          color: "white",
+        }}
+      >
+        ⏹ End Session
+      </button>
+
+      {score && (
+        <div style={{ marginTop: 40 }}>
+          <h2>Score: {score.total_score}</h2>
+          <p>Pitch: {score.pitch_accuracy}%</p>
+          <p>Timing: {score.timing_accuracy}%</p>
+        </div>
+      )}
 
       <div style={{ marginTop: 40 }}>
         {latest ? (

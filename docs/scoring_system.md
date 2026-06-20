@@ -95,7 +95,7 @@ Convert continuous stream of raw pitch observations into stable, discrete musica
 Stream of pitch observations:
 
 ```python
-(pitch, timestamp)
+(note, frequency, timestamp)
 ```
 
 ### Output
@@ -104,7 +104,7 @@ Performed notes:
 
 ```python
 {
-  pitch: int,
+  note: int,
   start_time: float,
   end_time: float,
   confidence: float
@@ -177,9 +177,7 @@ Performed notes:
 Aligned note pairs:
 
 ```python
-[
-(expected_note, performed_note | None)
-]
+[(expected_note, performed_note | None)]
 ```
 
 ### Design Note
@@ -206,6 +204,7 @@ Example:
 
 pitch_error = |expected_pitch - performed_pitch|
 timing_error = |expected_time - performed_time|
+
 Output
 
 Per-note evaluation results:

@@ -26,6 +26,10 @@ class ScoreEngine:
         # 3. Align
         aligned = align_notes(expected, performed)
 
+        print("\n=== ALIGNED NOTES from (scoring_engine.py)===")
+        for note in aligned:
+            print(note)
+
         # 4. Score
         score = score_alignment(aligned)
 

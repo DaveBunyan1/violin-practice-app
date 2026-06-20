@@ -22,6 +22,10 @@ def process_notes(
 
         try:
             session = controller.get_session()
+            if not controller.get_active_state():
+                inbound_queue.task_done()
+                continue
+
         except RuntimeError:
             inbound_queue.task_done()
             continue
@@ -48,6 +52,7 @@ def process_notes(
             "frequency": event["frequency"],
             "timestamp": relative_time,
         }
+        print("RELATIVE EVENT (from pipeline.py)")
         print(relative_event)
 
         if relative_event["note"] != "REST":
