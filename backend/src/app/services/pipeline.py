@@ -15,14 +15,15 @@ def process_notes(
 ) -> None:
     """
     Pipeline stage:
-    Raw pitch → LiveDashboardMetrics → session + websocket consumers
+    PerformedNoteEvent → SessionEvent + LiveDashboardMetrics
     """
     while True:
         event = inbound_queue.get()
 
         try:
             session = controller.get_session()
-            if not controller.get_active_state():
+
+            if not controller.is_active():
                 inbound_queue.task_done()
                 continue
 
@@ -30,41 +31,43 @@ def process_notes(
             inbound_queue.task_done()
             continue
 
-        # -------------------------
-        # 1. Transform input event
-        # -------------------------
-        relative_time = event["timestamp"] - session.start_time
+        # ------------------------------------------------
+        # 1. Normalize time (single source of truth)
+        # ------------------------------------------------
+        relative_start = event["start_time"] - session.start_time
+        relative_end = event["end_time"] - session.start_time
 
-        expected = controller.target.get_expected_note(relative_time)
+        # ------------------------------------------------
+        # 2. Expected note lookup (time-based)
+        # ------------------------------------------------
+        expected = controller.target.get_expected_note(relative_start)
 
+        # ------------------------------------------------
+        # 3. Session event (clean storage format)
+        # ------------------------------------------------
+        session.add_performed_note(
+            {
+                "note": event["note"],
+                "frequency": event["frequency"],
+                "start_time": relative_start,
+                "end_time": relative_end,
+                "duration": event["duration"],
+            }
+        )
+
+        # ------------------------------------------------
+        # 4. Live UI metrics
+        # ------------------------------------------------
         metrics: LiveDashboardMetrics = {
             "frequency": event["frequency"],
             "note": event["note"],
-            "time": relative_time,
+            "time": relative_start,
             "expected_note": expected,
         }
 
-        # -------------------------
-        # 2. Side effect: session storage
-        # -------------------------
-        relative_event: PerformedNoteEvent = {
-            "note": event["note"],
-            "frequency": event["frequency"],
-            "timestamp": relative_time,
-        }
-        print("RELATIVE EVENT (from pipeline.py)")
-        print(relative_event)
-
-        if relative_event["note"] != "REST":
-            session.add_performed_note(relative_event)
-
-        session.add_event(metrics)
-
-        print(len(session.get_performed_notes()))
-
-        # -------------------------
-        # 3. Side effect: websocket output
-        # -------------------------
+        # ------------------------------------------------
+        # 5. WebSocket output
+        # ------------------------------------------------
         websocket_broadcast_queue.put(
             {
                 "type": "pitch",
