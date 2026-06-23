@@ -5,7 +5,7 @@ import numpy as np
 import sounddevice as sd  # type: ignore
 
 from app.pitch.autocorrelation import estimate_frequency
-from app.pitch.notes import freq_to_note
+from app.pitch.notes import calculate_pitch_error, freq_to_note
 from app.core.events import PitchObservationEvent
 
 # Domain-specific default configuration parameters
@@ -63,15 +63,18 @@ class AudioIngestionStream:
         if rms_volume < self.ambient_noise_threshold:
             freq = 0.0
             note = "REST"
+            cents_error = None
         else:
             freq = float(estimate_frequency(audio_chunk, self.sample_rate))
             note = freq_to_note(freq)
+            cents_error = calculate_pitch_error(freq)
 
         # 5. Thread-safe dispatch out of the high-priority callback context
         event: PitchObservationEvent = {
             "frequency": freq,
             "note": note,
             "timestamp": current_timestamp,
+            "pitch_cents_error": cents_error,
         }
         self.inbound_queue.put(event)
 

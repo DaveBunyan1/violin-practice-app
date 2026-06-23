@@ -21,6 +21,7 @@ class PitchObservationEvent(TypedDict):
     frequency: float
     note: str
     timestamp: float  # perf_counter absolute time
+    pitch_cents_error: Optional[float]
 
 
 # 2. Segmented Data Layer
@@ -33,6 +34,7 @@ class PerformedNoteEvent(TypedDict):
 
     note: str
     frequency: float
+    avg_pitch_error_cents: Optional[float]
     start_time: float
     end_time: float
 
@@ -43,6 +45,7 @@ class PerformedNoteEvent(TypedDict):
 class SessionStoredNote(TypedDict):
     note: str
     frequency: float
+    avg_pitch_error_cents: Optional[float]
     start_time: float  # Session-relative time (seconds from start)
     end_time: float  # Session-relative time (seconds from start)
     duration: float
@@ -50,7 +53,7 @@ class SessionStoredNote(TypedDict):
 
 # 4. Alignment Layer
 class AlignedNote(TypedDict):
-    """\
+    """
     The result of mapping a performed note against the expected score entry.
     AlignedNote is a PURE DERIVED STRUCTURE.
     No computation should mutate source timing semantics.
@@ -86,6 +89,7 @@ class LiveDashboardMetrics(TypedDict):
     time: float
 
     expected_note: Optional[str]
+    pitch_cents_error: Optional[float]
 
 
 class WebSocketBroadcastEvent(TypedDict):
