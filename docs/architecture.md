@@ -2,7 +2,7 @@
 
 | Status    | Version | Last Updated | Replaces        | Historical Archive |
 | :-------- | :------ | :----------- | :-------------- | :----------------- |
-| **Draft** | v1.2.0  | June 2026    | architecture-v0 | N/A                |
+| **Draft** | v1.3.0  | June 2026    | architecture-v0 | N/A                |
 
 ## 1. Overview
 
