@@ -39,6 +39,7 @@ htmlcov/
 # Database
 
 *.db
+/backend/violin_pipeline.db
 
 # ----------------------
 
