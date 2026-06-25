@@ -36,6 +36,10 @@ htmlcov/
 
 .ipynb_checkpoints/
 
+# Database
+
+*.db
+
 # ----------------------
 
 # Node / Next.js
