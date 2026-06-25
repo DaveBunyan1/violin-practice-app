@@ -1,8 +1,8 @@
 # Violin Practice App — System Spec
 
-| Status       | Version                | Last Updated | Replaces | Historical Archive |
-| :----------- | :--------------------- | :----------- | :------- | :----------------- |
-| **Approved** | v0.1.0 (Current State) | June 2026    | N/A      | N/A                |
+| Status    | Version | Last Updated | Replaces        | Historical Archive |
+| :-------- | :------ | :----------- | :-------------- | :----------------- |
+| **Draft** | v1.1.0  | June 2026    | architecture-v0 | N/A                |
 
 ## 1. Overview
 
@@ -17,7 +17,25 @@ The system is a real-time audio processing pipeline that:
 
 ---
 
-## 2. High-Level Architecture
+## 2. Core Design Principle
+
+### Event Contract Ownership
+
+Each pipeline stage owns the structure it emits.
+
+Downstream stages may add information but should not reinterpret
+or mutate the meaning of existing fields.
+
+Examples:
+
+- Pitch detection estimates frequency.
+- Segmentation identifies stable note events.
+- Alignment maps performed notes to expected notes.
+- Scoring evaluates alignment results.
+
+---
+
+## 3. High-Level Architecture
 
 ```text
                 ┌──────────────────────────┐
@@ -41,214 +59,144 @@ WebSocket UI                           SessionController storage
 
 ---
 
-## 3. System Components
+## 4. Time Model
 
-### 3.1 Audio Ingestion Layer
+### Time Source
 
-#### Responsibility
+All timing uses `time.perf_counter()`.
 
-Convert raw audio frames into pitch estimates in real time.
+### Session Start
 
-#### Implementation
+`SessionController.start_session()` records the reference timestamp.
 
-- sounddevice callback stream
-- autocorrelation-based frequency estimation (current)
-- note mapping via freq_to_note
+### Relative Time
 
-#### Output Event
+All timestamps stored after the ingestion layer are converted to
+session-relative seconds.
+
+#### Example:
+
+```JSON
+{
+  "timestamp": 2.37
+}
+```
+
+means:
+
+```text
+2.37 seconds after session start
+```
+
+---
+
+## 5. Event Contracts
+
+### PitchObservationEvent
+
+Raw pitch detection output:
 
 ```python
 class PitchObservationEvent(TypedDict):
     frequency: float
     note: str
-    timestamp: float  # time from perf_counter()
+    timestamp: float # Absolute machine time (time.perf_counter())
 ```
 
-#### Notes
+Produced by:
 
-- REST detected as "REST" note
-- timing uses `time.perf_counter()`
-- no musical structure is inferred here
+```python
+AudioIngestionStream
+```
 
----
+Consumed by:
 
-### 3.2 Note Segmentation Layer
+```python
+NoteSegmenter
+```
 
-#### Component
+### PerformedNoteEvent
 
-`NoteSegmenter`
-
-#### Responsibility
-
-Convert noisy pitch stream into stable musical note events.
-
-#### Behaviour
-
-- maintains internal state (current + candidate note)
-- confirms notes after stability threshold (~100ms default)
-- emits note start events via callback
-
-#### Output Event
+Stable musical note produced by segmentation.
 
 ```python
 class PerformedNoteEvent(TypedDict):
     note: str
     frequency: float
-    timestamp: float  # note onset time
+    timestamp: float # Absolute machine time (time.perf_counter())
 ```
 
-#### Notes
-
-- REST notes are currently emitted but not always used downstream
-- segmentation is stateful and time-based only
-- no reference to target piece
-
----
-
-### 3.3 Session Model
-
-#### Component
-
-`PracticeSession`
-
-#### Responsibility
-
-Store all session-related data during a practice run.
-
-#### Stored Data
+Produced by:
 
 ```python
-start_time: float
-events: List[LiveDashboardMetrics]
-performed_notes: List[PerformedNoteEvent]
+NoteSegmenter
 ```
 
-#### Notes
-
-- thread-safe via RLock
-- start time uses `time.perf_counter()`
-- acts as in-memory event log
-
----
-
-### 3.4 Session Controller
-
-#### Component
-
-`SessionController`
-
-#### Responsibility
-
-Manage lifecycle of a practice session.
-
-#### Features
-
-- `start_session()`
-- `reset_session()`
-- `get_session()`
-
-#### Notes
-
-- only one active session at a time
-- protects session with lock
-
----
-
-### 3.5 Pipeline (Alignment Stage)
-
-#### Component
-
-`process_notes`
-
-#### Responsibility
-
-Transform performed notes into live metrics + session storage.
-
-#### Inputs
+Consumed by:
 
 ```python
-PerformedNoteEvent
+PracticeSession
+Alignment
 ```
 
-#### Outputs
+### LiveDashboardMetrics
 
-1. Session storage update (`session.add_event`)
-2. Live dashboard event via WebSockets
-
-#### Live Event
+Real-time UI payload.
 
 ```python
 class LiveDashboardMetrics(TypedDict):
     frequency: float
     note: str
-    time: float  # relative time
+    time: float # Session-relative time (seconds)
     expected_note: Optional[str]
 ```
 
-#### Behaviour
-
-- blocks on the `inbound_queue` waiting for the upstream segmenter to confirm a stable note.
-- computes relative time using session start
-- queries the expected note from PracticeTarget for that specific time snapshot
-- stores the metrics in the session log
-- broadcasts the note data down the WebSocket for the UI dashboard
-
----
-
-### 3.6 Practice Target (Piece Definition)
-
-#### Component
-
-`PracticeTarget`
-
-#### Responsibility
-
-Define expected notes for a session.
-
-#### Modes
-
-- tuner (single note)
-- piece (sequence of notes)
-
-#### Example
+Produced by:
 
 ```python
-ExpectedNote("G3", 1)
-ExpectedNote("D4", 2)
-ExpectedNote("A4", 3)
-ExpectedNote("E5", 4)
+process_notes
 ```
 
-#### Behaviour
-
-- maps time → expected note
-- used only during alignment stage
-
----
-
-### 3.7 Alignment + Scoring Engine
-
-#### Component
-
-`ScoreEngine`
-
-#### Responsibility
-
-Convert session performance into a final score.
-
-#### Pipeline
+Consumed by:
 
 ```text
-Expected notes + Performed notes
-        ↓
-Alignment (note matching by time)
-        ↓
-Score computation
-        ↓
+Frontend
+```
+
+### AlignedNote
+
+Alignment output.
+
+```python
+class AlignedNote(TypedDict):
+    expected_note: str
+    performed_note: Optional[str]
+
+    expected_time: float # Session-relative target time
+    performed_time: Optional[float] # Session-relative performance time
+
+    pitch_error_cents: Optional[float]
+    time_error: Optional[float]
+
+    match_quality: float
+```
+
+Produced by:
+
+```python
+align_notes()
+```
+
+Consumed by:
+
+```python
+score_alignment()
 ScoreResult
 ```
 
-#### Output
+### ScoreResult.
+
+Final performance summary payload
 
 ```python
 class ScoreResult(TypedDict):
@@ -259,124 +207,348 @@ class ScoreResult(TypedDict):
     notes_total: int
 ```
 
-#### Notes
-
-- alignment currently uses greedy time-based matching
-- scoring uses pitch match + timing error
-- invoked manually via end_session
-
----
-
-### 3.8 WebSocket Layer
-
-#### Responsibility
-
-Provide real-time UI updates + session control.
-
-#### Incoming Messages
-
-```JSON
-{ "type": "start_session" }
-{ "type": "reset_session" }
-{ "type": "end_session" }
-```
-
-#### Outgoing Messages
-
-- live pitch stream (`LiveDashboardMetrics`)
-- final score (on end session)
-
----
-
-## 4. Timing System
-
-### Current Implementation
-
-- `time.perf_counter()` used everywhere
-- relative time computed as:
+Produced by:
 
 ```python
-relative_time = event.timestamp - session.start_time
+ScoreEngine
 ```
 
-### Known Behaviour
+Consumed by:
 
-- stable for short sessions
-- drift-free relative consistency
-- not persistent across sessions
+```text
+Frontend
+```
 
 ---
 
-## 5. Data Flow Summary
+## 6. Pipeline Stages
 
-### Live Path (real-time feedback)
+### Stage 1 — Pitch Detection
 
-```text
+#### Responsibilities:
+
+- Read audio frames.
+- Estimate frequency.
+- Map frequency to nearest note.
+
+Produces:
+
+```python
 PitchObservationEvent
-    ↓
-NoteSegmenter
-    ↓
-LiveDashboardMetrics
-    ↓
-WebSocket UI
 ```
 
+Does NOT:
+
+- Identify note boundaries.
+- Score performance.
+- Align notes.
+
+### Stage 2 — Note Segmentation
+
+#### Responsibilities:
+
+- Convert pitch frames into stable note events.
+- Remove rapid note flicker.
+- Detect note transitions.
+
+Produces:
+
+```python
+PerformedNoteEvent
+```
+
+Does NOT:
+
+- Score notes.
+- Compare against targets.
+
+### Stage 3 — Session Pipeline
+
+#### Responsibilities:
+
+- Convert timestamps to session-relative time.
+- Determine expected note at current time.
+- Store session history.
+- Emit websocket updates.
+
+Produces:
+
+```python
+LiveDashboardMetrics
+```
+
+### Stage 4 — Alignment
+
+#### Responsibilities:
+
+- Match performed notes to expected notes.
+- Compute timing differences.
+
+Produces:
+
+```python
+AlignedNote
+```
+
+### Stage 5 — Scoring
+
+#### Responsibilities:
+
+- Compute pitch accuracy.
+- Compute timing accuracy.
+- Produce session score.
+
+Produces:
+
+```python
+ScoreResult
+```
+
+---
+
+## 7. Event Contract Table (v1)
+
+## 7.1 Design Rules (Applies to All Events)
+
+- Each event has a single producer
+- Each field has a fixed semantic meaning
+- Timestamps are never overloaded with multiple meanings
+- Downstream layers may add derived events, but must not mutate existing ones
+- REST is treated as a valid musical state, not noise (unless explicitly filtered earlier)
+
+## 7.2 PitchObservationEvent (Ingestion Layer)
+
+**Purpose:** Raw pitch estimation output from audio frames
+
+```python
+class PitchObservationEvent(TypedDict):
+    frequency: float
+    note: str
+    timestamp: float  # PERF_COUNTER (absolute monotonic time)
+```
+
+#### Produced by
+
+- AudioIngestionStream
+
+#### Consumed by
+
+- NoteSegmenter
+
+#### Rules
+
+- Must NOT contain session-relative time
+- Must NOT contain alignment or scoring data
+- May include "REST" as valid note state
+
+## 7.3 PerformedNoteEvent (Segmentation Layer)
+
+**Purpose:** Stable musical note extracted from raw pitch stream
+
+```python
+class PerformedNoteEvent(TypedDict):
+note: str
+frequency: float
+timestamp: float # PERF_COUNTER (note onset time)
+
+```
+
+#### Produced by
+
+- NoteSegmenter
+
+#### Consumed by
+
+- Session storage
+- Alignment engine
+
+#### Rules
+
+- Represents a musical decision, not raw audio
+- Must be stable (debounced / confirmed)
+- Must NOT include pitch estimation metadata (unless explicitly extended later)
+
+## 7.4 LiveDashboardMetrics (Realtime UI Layer)
+
+**Purpose:** Real-time feedback stream for frontend visualization
+
+```python
+class LiveDashboardMetrics(TypedDict):
+    frequency: float
+    note: str
+    time: float  # session-relative time
+    expected_note: Optional[str]
+```
+
+#### Produced by
+
+- Pipeline orchestrator (process_notes)
+
+#### Consumed by
+
+- Frontend WebSocket UI
+
+#### Rules
+
+- Must always use session-relative time
+- Must NOT be used for scoring
+- May include derived fields (expected note, error hints later)
+
+## 7.5 AlignedNote (Alignment Layer)
+
+**Purpose:** Mapping between performed notes and expected score positions
+
+```python
+class AlignedNote(TypedDict):
+    expected_note: str
+    performed_note: Optional[str]
+
+    expected_time: float  # score timeline reference
+    performed_time: Optional[float]  # session-relative
+
+    pitch_error_cents: Optional[float]
+    time_error: Optional[float]
+
+    match_quality: float
+```
+
+#### Produced by
+
+- align_notes()
+
+#### Consumed by
+
+- ScoreEngine
+
+#### Rules
+
+- Must NOT modify performed data
+- Must NOT recompute pitch detection
+- Alignment is purely a mapping function
+
+## 7.6 ScoreResult (Scoring Layer)
+
+**Purpose:** Final evaluation of session performance
+
+```python
+class ScoreResult(TypedDict):
+    total_score: float
+    pitch_accuracy: float
+    timing_accuracy: float
+    notes_hit: int
+    notes_total: int
+```
+
+#### Produced by
+
+- ScoreEngine
+
+#### Consumed by
+
+- Frontend (end-of-session)
+
+#### Rules
+
+- Pure output only
+- Must not retain session state
+- Must not mutate alignment data
+
+## 7.7 Session Internal Events (Implementation Detail)
+
+These are NOT external contracts but important for clarity:
+
+```python
+PracticeSession.events
+PracticeSession.performed_notes
+```
+
+#### Rules
+
+- Internal storage only
+- May diverge from external event schemas for optimization
+- Never exposed directly to frontend
+
+---
+
+## 8. Contract Flow Diagram (v1 tightened)
+
 ```text
-Session Path (evaluation)
+AudioIngestionStream
+    ↓
 PitchObservationEvent
     ↓
 NoteSegmenter
     ↓
 PerformedNoteEvent
     ↓
-SessionController storage
-    ↓
-ScoreEngine (on end_session)
-    ↓
-ScoreResult
+Pipeline Orchestrator
+    ├── LiveDashboardMetrics → WebSocket UI
+    └── Session storage
+             ↓
+        Alignment Engine
+             ↓
+         AlignedNote
+             ↓
+        ScoreEngine
+             ↓
+         ScoreResult
+```
+
+## 9. Current Scoring Model (v1)
+
+Pitch:
+
+```text
+Correct note = 1 point
+Incorrect note = 0 points
+```
+
+Timing:
+
+```python
+1.0 - abs(error) / 0.4
+```
+
+clamped to:
+
+```python
+[0.0, 1.0]
+```
+
+Weighting:
+
+```text
+Pitch: 70%
+Timing: 30%
 ```
 
 ---
 
-## 6. Known Limitations (v0)
+## 10. Current Limitations
 
-### DSP
+**Algorithmic:**
 
-- autocorrelation may misdetect harmonics
-- noise handling is basic
+- Autocorrelation pitch estimation may misidentify notes.
+- Alignment uses greedy nearest-neighbor matching.
+- Timing tolerance is fixed at 400 ms.
+- Pitch scoring is note-based rather than cents-based.
 
-### Segmentation
+**System:**
 
-- REST handling is inconsistent
-- no explicit note end timestamps (important limitation)
-
-### Alignment
-
-- greedy matching (not optimal for complex rhythms)
-- assumes near-linear progression
-
-### Scoring
-
-- simple weighting model
-- no expressive features (vibrato, articulation, etc.)
+- Sessions are stored in memory only.
+- Piece definitions are hard-coded.
+- No persistent score history.
+- No session replay.
 
 ---
 
-## 7. Design Intent (NOT implemented yet)
+## Planned v2 Enhancements
 
-These are future directions only:
-
-- FFT-based pitch detection (replace autocorrelation)
-- persistent session storage (replayable sessions)
-- strict event contracts per layer
-- improved alignment (DP / HMM-based)
-- richer scoring model (intonation curves, stability metrics)
-
----
-
-## 8. Core Design Principle (v0)
-
-<br/>
-
-> [!NOTE]
-> Each layer transforms data exactly once and adds structure — it does not reinterpret prior meaning.
+- Add pitch_error_cents to PitchObservationEvent.
+- Carry pitch accuracy through segmentation.
+- Replace note-based pitch scoring with cents-based scoring.
+- Persistent session storage.
+- Session replay.
+- Dynamic tempo-aware alignment.
+- Confidence scoring.
+- FFT or hybrid pitch detection.
