@@ -45,6 +45,8 @@ def process_notes(
         # ------------------------------------------------
         # 3. Session event (clean storage format)
         # ------------------------------------------------
+        avg_cents = event.get("avg_pitch_error_cents")
+
         session.add_performed_note(
             {
                 "note": event["note"],
@@ -52,6 +54,7 @@ def process_notes(
                 "start_time": relative_start,
                 "end_time": relative_end,
                 "duration": event["duration"],
+                "avg_pitch_error_cents": avg_cents,
             }
         )
 
@@ -63,6 +66,7 @@ def process_notes(
             "note": event["note"],
             "time": relative_start,
             "expected_note": expected,
+            "pitch_cents_error": avg_cents,
         }
 
         # ------------------------------------------------

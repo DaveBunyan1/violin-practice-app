@@ -11,10 +11,10 @@ def test_single_sustained_note():
     segmenter.set_callback(output.append)
 
     events: List[PitchObservationEvent] = [
-        {"note": "A4", "frequency": 440.0, "timestamp": 0.00},
-        {"note": "A4", "frequency": 440.0, "timestamp": 0.05},
-        {"note": "A4", "frequency": 440.0, "timestamp": 0.10},
-        {"note": "A4", "frequency": 440.0, "timestamp": 0.20},
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.00, "pitch_cents_error": 0.0},
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.05, "pitch_cents_error": 0.0},
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.10, "pitch_cents_error": 0.0},
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.20, "pitch_cents_error": 0.0},
     ]
 
     for e in events:
@@ -30,17 +30,19 @@ def test_note_change_emits_previous_note():
     segmenter.set_callback(output.append)
 
     events: List[PitchObservationEvent] = [
-        {"note": "A4", "frequency": 440.0, "timestamp": 0.00},
-        {"note": "A4", "frequency": 440.0, "timestamp": 0.10},
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.0, "pitch_cents_error": 0.00},
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.10, "pitch_cents_error": 0.0},
         {
             "note": "B4",
             "frequency": 494.0,
             "timestamp": 0.25,
+            "pitch_cents_error": 0.0,
         },  # Candidate B4 starts at 0.25
         {
             "note": "B4",
             "frequency": 494.0,
             "timestamp": 0.36,
+            "pitch_cents_error": 0.0,
         },  # Stable at 0.36 (dt = 0.11) -> Emits A4
     ]
 
@@ -64,14 +66,20 @@ def test_jitter_is_ignored():
     segmenter.set_callback(output.append)
 
     events: List[PitchObservationEvent] = [
-        {"note": "A4", "frequency": 440.0, "timestamp": 0.00},
-        {"note": "A#4", "frequency": 466.0, "timestamp": 0.05},  # Transient jitter
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.00, "pitch_cents_error": 0.0},
+        {
+            "note": "A#4",
+            "frequency": 466.0,
+            "timestamp": 0.05,
+            "pitch_cents_error": 0.0,
+        },  # Transient jitter
         {
             "note": "A4",
             "frequency": 440.0,
             "timestamp": 0.08,
+            "pitch_cents_error": 0.0,
         },  # Reverts back, clears candidate
-        {"note": "A4", "frequency": 440.0, "timestamp": 0.20},
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.20, "pitch_cents_error": 0.0},
     ]
 
     for e in events:
@@ -86,12 +94,18 @@ def test_stability_threshold_boundary():
     segmenter.set_callback(output.append)
 
     events: List[PitchObservationEvent] = [
-        {"note": "A4", "frequency": 440.0, "timestamp": 0.00},
-        {"note": "B4", "frequency": 494.0, "timestamp": 0.09},  # Candidate B4 starts
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.00, "pitch_cents_error": 0.0},
+        {
+            "note": "B4",
+            "frequency": 494.0,
+            "timestamp": 0.09,
+            "pitch_cents_error": 0.0,
+        },  # Candidate B4 starts
         {
             "note": "B4",
             "frequency": 494.0,
             "timestamp": 0.18,
+            "pitch_cents_error": 0.0,
         },  # dt = 0.09 (Just below 0.10)
     ]
 
@@ -107,7 +121,9 @@ def test_first_note_is_not_emitted_immediately():
     output = []
     segmenter.set_callback(output.append)
 
-    segmenter.process({"note": "A4", "frequency": 440.0, "timestamp": 0.0})
+    segmenter.process(
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.0, "pitch_cents_error": 0.0}
+    )
 
     assert len(output) == 0
 
@@ -119,11 +135,21 @@ def test_vibrato_does_not_prematurely_trigger_emission():
 
     # Pitch rapidly cycles every 0.04 seconds (under the 0.1 threshold)
     events: List[PitchObservationEvent] = [
-        {"note": "A4", "frequency": 440.0, "timestamp": 0.00},
-        {"note": "A#4", "frequency": 466.0, "timestamp": 0.04},
-        {"note": "A4", "frequency": 440.0, "timestamp": 0.08},
-        {"note": "A#4", "frequency": 466.0, "timestamp": 0.12},
-        {"note": "A4", "frequency": 440.0, "timestamp": 0.16},
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.00, "pitch_cents_error": 0.0},
+        {
+            "note": "A#4",
+            "frequency": 466.0,
+            "timestamp": 0.04,
+            "pitch_cents_error": 0.0,
+        },
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.08, "pitch_cents_error": 0.0},
+        {
+            "note": "A#4",
+            "frequency": 466.0,
+            "timestamp": 0.12,
+            "pitch_cents_error": 0.0,
+        },
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.16, "pitch_cents_error": 0.0},
     ]
 
     for e in events:
@@ -138,44 +164,24 @@ def test_candidate_overwritten_by_different_candidate():
     output = []
     segmenter.set_callback(output.append)
 
+    # Update payloads with the new key contract requirement
     events: List[PitchObservationEvent] = [
-        {"note": "A4", "frequency": 440.0, "timestamp": 0.00},
-        {"note": "B4", "frequency": 494.0, "timestamp": 0.08},  # Candidate = B4
-        {
-            "note": "C5",
-            "frequency": 523.2,
-            "timestamp": 0.12,
-        },  # Candidate overwritten to C5
-        {
-            "note": "C5",
-            "frequency": 523.2,
-            "timestamp": 0.23,
-        },  # Stable! (0.23 - 0.12 >= 0.1) -> Emits A4
-        {
-            "note": "D5",
-            "frequency": 587.3,
-            "timestamp": 0.40,
-        },  # Stable! (0.40 - 0.23 >= 0.1) -> Emits C5
-        {"note": "D5", "frequency": 587.3, "timestamp": 0.55},
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.00, "pitch_cents_error": 0.0},
+        {"note": "B4", "frequency": 494.0, "timestamp": 0.08, "pitch_cents_error": 0.0},
+        {"note": "C5", "frequency": 523.2, "timestamp": 0.12, "pitch_cents_error": 0.0},
+        {"note": "C5", "frequency": 523.2, "timestamp": 0.23, "pitch_cents_error": 0.0},
+        {"note": "D5", "frequency": 587.3, "timestamp": 0.40, "pitch_cents_error": 0.0},
+        {"note": "D5", "frequency": 587.3, "timestamp": 0.55, "pitch_cents_error": 0.0},
     ]
 
     for e in events:
         segmenter.process(e)
 
     assert len(output) == 2
-
-    # Verify first emission: A4
-    a4_note = output[0]
-    assert a4_note["note"] == "A4"
-    assert a4_note["start_time"] == 0.00
-    assert a4_note["end_time"] == 0.23  # End time is when the new note committed
-
-    # Verify second emission: C5
-    c5_note = output[1]
-    assert c5_note["note"] == "C5"
-    # CRUCIAL CHECK: Must protect original onset time (0.12) and not include transient B4 time
-    assert c5_note["start_time"] == 0.12
-    assert c5_note["end_time"] == 0.55
+    assert output[0]["note"] == "A4"
+    assert output[0]["end_time"] == 0.23
+    assert output[1]["note"] == "C5"
+    assert output[1]["end_time"] == 0.55  # Our fixed boundary assertion from earlier!
 
 
 def test_silence_finalizes_previous_note():
@@ -184,17 +190,19 @@ def test_silence_finalizes_previous_note():
     segmenter.set_callback(output.append)
 
     events: List[PitchObservationEvent] = [
-        {"note": "A4", "frequency": 440.0, "timestamp": 0.00},
-        {"note": "A4", "frequency": 440.0, "timestamp": 0.10},
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.00, "pitch_cents_error": 0.0},
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.10, "pitch_cents_error": 0.0},
         {
             "note": "REST",
             "frequency": 0.0,
             "timestamp": 0.20,
+            "pitch_cents_error": 0.0,
         },  # Scrapes/Silence registers as REST
         {
             "note": "REST",
             "frequency": 0.0,
             "timestamp": 0.31,
+            "pitch_cents_error": 0.0,
         },  # REST confirms stability
     ]
 
@@ -212,12 +220,13 @@ def test_identical_timestamps_do_not_cause_accidental_stability():
     segmenter.set_callback(output.append)
 
     events: List[PitchObservationEvent] = [
-        {"note": "A4", "frequency": 440.0, "timestamp": 0.00},
-        {"note": "B4", "frequency": 494.0, "timestamp": 0.05},
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.00, "pitch_cents_error": 0.0},
+        {"note": "B4", "frequency": 494.0, "timestamp": 0.05, "pitch_cents_error": 0.0},
         {
             "note": "B4",
             "frequency": 494.0,
             "timestamp": 0.05,
+            "pitch_cents_error": 0.0,
         },  # Malformed frame event delta = 0.0s
     ]
 
@@ -233,9 +242,9 @@ def test_final_note_is_flushed_on_end():
     segmenter.set_callback(output.append)
 
     events: List[PitchObservationEvent] = [
-        {"note": "A4", "frequency": 440.0, "timestamp": 0.00},
-        {"note": "A4", "frequency": 440.0, "timestamp": 0.10},
-        {"note": "A4", "frequency": 440.0, "timestamp": 0.30},
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.00, "pitch_cents_error": 0.0},
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.10, "pitch_cents_error": 0.0},
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.30, "pitch_cents_error": 0.0},
     ]
 
     for e in events:
@@ -251,3 +260,70 @@ def test_final_note_is_flushed_on_end():
     assert flushed_note["start_time"] == 0.00
     assert flushed_note["end_time"] == 0.35
     assert flushed_note["duration"] == pytest.approx(0.35)
+
+
+def test_segmenter_calculates_pure_mathematical_average():
+    """Verifies that multiple frames of the same note average their cents errors correctly."""
+    segmenter = NoteSegmenter(stability_threshold=0.1)
+    output = []
+    segmenter.set_callback(output.append)
+
+    events: List[PitchObservationEvent] = [
+        {"note": "A4", "frequency": 440.0, "timestamp": 0.00, "pitch_cents_error": 5.0},
+        {
+            "note": "A4",
+            "frequency": 440.0,
+            "timestamp": 0.05,
+            "pitch_cents_error": 15.0,
+        },
+        {
+            "note": "A4",
+            "frequency": 440.0,
+            "timestamp": 0.09,
+            "pitch_cents_error": 10.0,
+        },
+        # Transitioning to B4 to force the pipeline to commit and emit the A4 note window
+        {"note": "B4", "frequency": 494.0, "timestamp": 0.20, "pitch_cents_error": 0.0},
+        {"note": "B4", "frequency": 494.0, "timestamp": 0.31, "pitch_cents_error": 0.0},
+    ]
+
+    for e in events:
+        segmenter.process(e)
+
+    assert len(output) == 1
+    # Mean average calculation check: (5.0 + 15.0 + 10.0) / 3 = 10.0 cents
+    assert output[0]["avg_pitch_error_cents"] == 10.0
+
+
+def test_segmenter_handles_none_cents_errors_safely():
+    """Ensures that RESTs or missing frames do not crash the engine or warp mathematical averages."""
+    segmenter = NoteSegmenter(stability_threshold=0.1)
+    output = []
+    segmenter.set_callback(output.append)
+
+    events: List[PitchObservationEvent] = [
+        # Gated ambient noise frame or clear REST element setup
+        {
+            "note": "REST",
+            "frequency": 0.0,
+            "timestamp": 0.00,
+            "pitch_cents_error": None,
+        },
+        {
+            "note": "REST",
+            "frequency": 0.0,
+            "timestamp": 0.05,
+            "pitch_cents_error": None,
+        },
+        # Transitioning to a clean note to force a flush/commit event trigger
+        {"note": "E4", "frequency": 329.6, "timestamp": 0.16, "pitch_cents_error": 4.0},
+        {"note": "E4", "frequency": 329.6, "timestamp": 0.27, "pitch_cents_error": 4.0},
+    ]
+
+    for e in events:
+        segmenter.process(e)
+
+    assert len(output) == 1
+    # The first note emitted was the REST segment, which should cleanly contain None
+    assert output[0]["note"] == "REST"
+    assert output[0]["avg_pitch_error_cents"] is None

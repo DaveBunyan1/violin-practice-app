@@ -1,4 +1,4 @@
-from typing import Optional, Callable
+from typing import List, Optional, Callable
 from app.core.events import PitchObservationEvent, PerformedNoteEvent
 
 
@@ -18,11 +18,13 @@ class NoteSegmenter:
         self._current_note: Optional[str] = None
         self._current_frequency: Optional[float] = None
         self._note_start_time: Optional[float] = None
+        self._current_cents_errors: List[float] = []
 
         # candidate state
         self._candidate_note: Optional[str] = None
         self._candidate_frequency: Optional[float] = None
         self._candidate_start_time: Optional[float] = None
+        self._candidate_cents_errors: List[float] = []
 
         self._callback: Optional[Callable[[PerformedNoteEvent], None]] = None
 
@@ -36,20 +38,27 @@ class NoteSegmenter:
         note = event["note"]
         freq = event["frequency"]
         timestamp = event["timestamp"]
+        cents_error = event.get("pitch_cents_error")
 
         # first note ever
         if self._current_note is None:
-            self._start_new_note(note, freq, timestamp)
+            self._start_new_note(note, freq, timestamp, cents_error)
             return
 
         # stable continuation → cancel candidate
         if note == self._current_note:
+            if cents_error is not None:
+                self._current_cents_errors.append(cents_error)
             self._clear_candidate()
             return
 
         # start or continue candidate
         if self._candidate_note != note:
-            self._start_candidate(note, freq, timestamp)
+            self._start_candidate(note, freq, timestamp, cents_error)
+        else:
+            # Continue accumulating frames into the candidate window
+            if cents_error is not None:
+                self._candidate_cents_errors.append(cents_error)
 
         # guard
         if self._candidate_start_time is None:
@@ -62,20 +71,27 @@ class NoteSegmenter:
     # -------------------------------------------------
     # State transitions
     # -------------------------------------------------
-    def _start_new_note(self, note: str, freq: float, timestamp: float) -> None:
+    def _start_new_note(
+        self, note: str, freq: float, timestamp: float, cents_error: Optional[float]
+    ) -> None:
         self._current_note = note
         self._current_frequency = freq
         self._note_start_time = timestamp
+        self._current_cents_errors = [cents_error] if cents_error is not None else []
 
-    def _start_candidate(self, note: str, freq: float, timestamp: float) -> None:
+    def _start_candidate(
+        self, note: str, freq: float, timestamp: float, cents_error: Optional[float]
+    ) -> None:
         self._candidate_note = note
         self._candidate_frequency = freq
         self._candidate_start_time = timestamp
+        self._candidate_cents_errors = [cents_error] if cents_error is not None else []
 
     def _clear_candidate(self) -> None:
         self._candidate_note = None
         self._candidate_frequency = None
         self._candidate_start_time = None
+        self._candidate_cents_errors = []
 
     def _commit_candidate(self, timestamp: float) -> None:
         """
@@ -89,6 +105,7 @@ class NoteSegmenter:
         self._current_note = self._candidate_note
         self._current_frequency = self._candidate_frequency
         self._note_start_time = self._candidate_start_time
+        self._current_cents_errors = self._candidate_cents_errors
 
         self._clear_candidate()
 
@@ -106,12 +123,20 @@ class NoteSegmenter:
         ):
             return
 
+        if self._current_cents_errors:
+            avg_cents_error: Optional[float] = sum(self._current_cents_errors) / len(
+                self._current_cents_errors
+            )
+        else:
+            avg_cents_error = None
+
         event: PerformedNoteEvent = {
             "note": self._current_note,
             "frequency": self._current_frequency,
             "start_time": self._note_start_time,
             "end_time": end_timestamp,
             "duration": end_timestamp - self._note_start_time,
+            "avg_pitch_error_cents": avg_cents_error,
         }
 
         self._callback(event)
@@ -123,6 +148,7 @@ class NoteSegmenter:
         self._current_note = None
         self._current_frequency = None
         self._note_start_time = None
+        self._current_cents_errors = []
         self._clear_candidate()
 
     def flush(self, timestamp: float) -> None:

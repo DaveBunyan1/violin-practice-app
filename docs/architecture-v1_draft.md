@@ -2,7 +2,7 @@
 
 | Status    | Version | Last Updated | Replaces | Historical Archive |
 | :-------- | :------ | :----------- | :------- | :----------------- |
-| **Draft** | v1.0.0  | June 2026    | N/A      | N/A                |
+| **Draft** | v1.1.0  | June 2026    | N/A      | N/A                |
 
 ## 1. Overview
 
