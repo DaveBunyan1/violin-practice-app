@@ -1,6 +1,5 @@
 from typing import List
 
-
 from app.core.events import AlignedNote, SessionStoredNote
 from app.models.practice_target import ExpectedNote
 
@@ -43,7 +42,7 @@ def align_notes(
                     "expected_time": exp_time,
                     "performed_start_time": best_match["start_time"],
                     "performed_end_time": best_match["end_time"],
-                    "pitch_error_cents": None,  # v1.2
+                    "pitch_error_cents": best_match.get("avg_pitch_error_cents"),
                     "time_error": best_match["start_time"] - exp_time,
                     "match_quality": 1.0,
                 }

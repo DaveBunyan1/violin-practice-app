@@ -24,22 +24,39 @@ def score_alignment(aligned: List[AlignedNote]) -> ScoreResult:
             continue
 
         time_error = note["time_error"]
+        cents_error = note.get("pitch_error_cents")
 
         if time_error is None:
             continue
 
         notes_hit += 1
 
-        # Pitch
+        # ------------------------------------------------
+        # 1. Pitch Scoring Curve (v1.2.0 Cents Upgrade)
+        # ------------------------------------------------
+        # Base Check: Did they even play the right nominal note letter?
         if note["performed_note"] == note["expected_note"]:
-            pitch_score += 1.0
+            if cents_error is not None:
+                abs_cents = abs(cents_error)
+
+                if abs_cents <= 10.0:
+                    pitch_score += 1.0
+                elif abs_cents >= 50.0:
+                    pitch_score += 0.0
+                else:
+                    # Linear decay curve between 10 and 50 cents
+                    # Formula tracks decay across a 40-cent window width
+                    pitch_score += 1.0 - ((abs_cents - 10.0) / 40.0)
+
+            else:
+                pitch_score += 1.0
 
         # Timing
-        error = abs(time_error)
+        abs_time_error = abs(time_error)
 
         timing_score += max(
             0.0,
-            1.0 - (error / 0.4),
+            1.0 - (abs_time_error / 0.4),
         )
 
     pitch_accuracy = pitch_score / total_notes
