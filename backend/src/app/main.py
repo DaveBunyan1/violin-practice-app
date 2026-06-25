@@ -1,6 +1,12 @@
 import asyncio
 import threading
 import queue
+from contextlib import asynccontextmanager
+from typing import TypedDict
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import HTTPException
+from fastapi import WebSocket, WebSocketDisconnect
 
 # Core application imports
 from app.audio.ingestion import AudioIngestionStream
@@ -9,18 +15,17 @@ from app.services.note_segmenter import NoteSegmenter
 from app.core.events import (
     PitchObservationEvent,
     PerformedNoteEvent,
+    ScoreResult,
     WebSocketBroadcastEvent,
 )
+from app.core.logging import logger
 from app.models.session_controller import SessionController
 from app.models.practice_target import ExpectedNote, PracticeTarget
 from app.services.pipeline import process_notes
 
-# Websocket server and event structures
-from app.websocket.server import run as run_server, create_handler, broadcaster
-
-# ---------------------------------------------------
-# 1. Initialize Domain Objects & Targets
-# ---------------------------------------------------
+# -----------------------------------------------------------------
+# 1. Initialize Long-Lived Domain Objects (Singletons)
+# -----------------------------------------------------------------
 target = PracticeTarget(
     mode="piece",
     notes=[
@@ -32,40 +37,66 @@ target = PracticeTarget(
 )
 
 segmenter = NoteSegmenter()
-controller = SessionController(target, segmenter)
-score_engine = ScoreEngine(controller)
+
+session_controller = SessionController(target, segmenter)
+score_engine = ScoreEngine(session_controller)
+
+# Thread safe queues mapped globally for routes to access
+pitch_queue: queue.Queue[PitchObservationEvent] = queue.Queue()
+segmented_queue: queue.Queue[PerformedNoteEvent] = queue.Queue()
+broadcast_queue: queue.Queue[WebSocketBroadcastEvent] = queue.Queue()
 
 
 def run_segmentation_pipeline(
     inbound_raw_queue: queue.Queue[PitchObservationEvent],
 ) -> None:
-    """
-    Worker Loop Thread: Pulls raw observations from the queue
-    and passes them to the segmenter's state machine.
-    """
+    """Worker Loop Thread: Pulls raw observations and passes them to the segmenter."""
+    logger.info("Segmentation background thread worker started.")
+
     while True:
         try:
-            # Block until a raw pitch event is available from the microphone thread
             raw_event = inbound_raw_queue.get(timeout=1.0)
+
+            logger.debug(
+                f"Processing raw frame: {raw_event['note']}",
+                extra={
+                    "extra_context": {
+                        "frequency": round(raw_event["frequency"], 1),
+                        "pitch_cents_error": raw_event.get("pitch_cents_error"),
+                    }
+                },
+            )
             segmenter.process(raw_event)
             inbound_raw_queue.task_done()
         except queue.Empty:
             continue
-        except Exception as e:
-            print("SEGMENTATION THREAD CRASH", e)
+        except Exception:
+            logger.error(
+                "Segmentation thread encountered a critical error.", exc_info=True
+            )
 
 
-# ---------------------------------------------------
-# 2. Async Runtime Entrypoint
-# ---------------------------------------------------
-async def main():
-    # Explicitly instantiate thread-safe queues
-    pitch_queue: queue.Queue[PitchObservationEvent] = queue.Queue()
-    segmented_queue: queue.Queue[PerformedNoteEvent] = queue.Queue()
-    broadcast_queue: queue.Queue[WebSocketBroadcastEvent] = queue.Queue()
+# -----------------------------------------------------------------
+# 2. FastAPI Lifespan (Thread Topology Management)
+# -----------------------------------------------------------------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Manages application startup and shutdown events, safely wrapping
+    the background real-time processing topology threads.
+    """
 
-    # Wire up Stage 2 (Segmentation) output to pipe into Stage 3
+    # Wire up Stage 2 (Segmentation) callback to queue
     def on_segmented(note: PerformedNoteEvent):
+        logger.info(
+            f"Segmenter committed note: {note['note']}",
+            extra={
+                "extra_context": {
+                    "duration": round(note["duration"], 2),
+                    "avg_pitch_error_cents": note.get("avg_pitch_error_cents"),
+                }
+            },
+        )
         segmented_queue.put(note)
 
     segmenter.set_callback(on_segmented)
@@ -73,39 +104,143 @@ async def main():
     # Instantiate Object-Oriented Audio Ingestion
     audio_streamer = AudioIngestionStream(inbound_queue=pitch_queue)
 
-    # ---------------------------------------------------
-    # Threading Topology Configuration
-    # ---------------------------------------------------
+    logger.info("Initializing system harness topology background threads.")
 
-    # Thread A: Microphone Engine & DSP Frequency Detection -> Pushes to pitch_queue
+    # Thread A: Microphone Input Ingestion
     threading.Thread(target=audio_streamer.start, daemon=True).start()
 
-    # Thread B: Listens to pitch_queue -> Runs NoteSegmenter State Machine -> Pushes to segmented_queue
+    # Thread B: Note Segmentation State Machine
     threading.Thread(
         target=run_segmentation_pipeline, args=(pitch_queue,), daemon=True
     ).start()
 
-    # Thread C: Listens to segmented_queue -> Sequence Alignment & Evaluation -> Pushes to broadcast_queue
+    # Thread C: Sequence Alignment & Scoring Engine
     threading.Thread(
         target=process_notes,
-        args=(controller, segmented_queue, broadcast_queue),
+        args=(session_controller, segmented_queue, broadcast_queue),
         daemon=True,
     ).start()
 
-    # ---------------------------------------------------
-    # Async WebSocket Infrastructure Context
-    # ---------------------------------------------------
-    handler = create_handler(controller, score_engine)
-    broadcaster_task_factory = lambda: broadcaster(broadcast_queue)
+    yield  # FastAPI Application Runs Here
 
-    await run_server(handler, broadcaster_task_factory)
+    logger.info("Shutting down background service threads.")
 
 
-# ---------------------------------------------------
-# 4. Process Bootstrap
-# ---------------------------------------------------
-if __name__ == "__main__":
+# -----------------------------------------------------------------
+# 3. FastAPI Initialization
+# -----------------------------------------------------------------
+app = FastAPI(
+    title="Violin Intonation Pipeline API", version="1.3.0", lifespan=lifespan
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+class HealthCheckReturn(TypedDict):
+    status: str
+    version: str
+    session_active: bool
+
+
+@app.get("/health")
+def health_check() -> HealthCheckReturn:
+    return {
+        "status": "healthy",
+        "version": "1.3.0",
+        "session_active": session_controller.is_active(),
+    }
+
+
+# -----------------------------------------------------------------
+# 4. Session Control REST Endpoints
+# -----------------------------------------------------------------
+class StartSessionOutput(TypedDict):
+    message: str
+    session_active: bool
+
+
+class EndSessionOutput(TypedDict):
+    message: str
+    score_result: ScoreResult
+
+
+@app.post("/session/start")
+def start_session() -> StartSessionOutput:
+    """Starts the active practice session recording window."""
+    if session_controller.is_active():
+        logger.warning("Session start rejected: session already running.")
+        raise HTTPException(
+            status_code=400, detail="Session is already actively running."
+        )
+
+    session_controller.start_session()
+    return {
+        "message": "Practice session started successfully.",
+        "session_active": session_controller.is_active(),
+    }
+
+
+@app.post("/session/end")
+def end_session() -> EndSessionOutput:
+    """Stops the recording session and calculates the final v1.2.0 score metrics."""
+    if not session_controller.is_active():
+        raise HTTPException(
+            status_code=400, detail="No active session found to terminate."
+        )
+
     try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("Shutting down backend services...")
+        # 1. Trigger the score engine calculation loop FIRST while the session is still active
+        final_score = score_engine.compute()
+
+        # 2. NOW gracefully terminate the tracking state after scoring is computed
+        session_controller.end_session()
+
+    except RuntimeError as e:
+        # Catch our specific domain error message cleanly
+        raise HTTPException(status_code=400, detail=f"Session state error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Scoring calculation failed: {str(e)}"
+        )
+
+    return {"message": "Session finalized successfully.", "score_result": final_score}
+
+
+# -----------------------------------------------------------------
+# 5. Real-Time Telemetry WebSocket
+# -----------------------------------------------------------------
+
+
+@app.websocket("/stream")
+async def websocket_stream_endpoint(websocket: WebSocket):
+    """
+    Accepts incoming telemetry connections and streams real-time
+    note and pitch error updates to the client.
+    """
+    await websocket.accept()
+    logger.info("Client connected to live telemetry stream.")
+
+    try:
+        while True:
+            # Check the broadcast queue for pipeline events without blocking the async loop.
+            # Using asyncio.sleep allows other network connections to share resources smoothly.
+            try:
+                # Get the event from Thread C's queue output
+                event = broadcast_queue.get_nowait()
+
+                # Send it over the active WebSocket network channel
+                await websocket.send_json(event)
+                broadcast_queue.task_done()
+
+            except queue.Empty:
+                # If no data is ready, yield control back to the async engine for a brief moment
+                await asyncio.sleep(0.01)
+
+    except WebSocketDisconnect:
+        logger.info("Client disconnected from live telemetry stream.")
