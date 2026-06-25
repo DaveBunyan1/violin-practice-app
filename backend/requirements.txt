@@ -5,6 +5,7 @@ cffi==2.0.0
 click==8.3.2
 colorama==0.4.6
 fastapi==0.135.3
+greenlet==3.5.2
 h11==0.16.0
 httptools==0.8.0
 idna==3.11
@@ -25,10 +26,11 @@ PyYAML==6.0.3
 scipy==1.17.1
 scipy-stubs==1.17.1.3
 sounddevice==0.5.5
+SQLAlchemy==2.0.51
 starlette==1.0.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 uvicorn==0.43.0
--e git+https://github.com/DaveBunyan1/violin-practice-app.git@69785a15e3c75b772103bac658efd2d20ab31668#egg=violin_practice_app&subdirectory=backend
+-e git+https://github.com/DaveBunyan1/violin-practice-app.git@7403bd2db9ca40d9541b7c9c989704c4efacf4a2#egg=violin_practice_app&subdirectory=backend
 watchfiles==1.2.0
 websockets==16.0
