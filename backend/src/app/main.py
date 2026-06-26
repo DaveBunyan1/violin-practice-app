@@ -2,11 +2,12 @@ import asyncio
 import threading
 import queue
 from contextlib import asynccontextmanager
-from typing import TypedDict, cast
+from typing import List, TypedDict, cast
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import HTTPException
 from fastapi import WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from datetime import datetime, timezone
@@ -23,7 +24,7 @@ from app.core.events import (
 )
 from app.core.logging import logger
 from app.models.session_controller import SessionController
-from app.models.practice_target import ExpectedNote, PracticeTarget
+from app.models.practice_target import PracticeTarget
 from app.services.pipeline import process_notes
 
 # Database imports
@@ -33,15 +34,27 @@ import app.database.models as db_models
 # -----------------------------------------------------------------
 # 1. Initialize Long-Lived Domain Objects (Singletons)
 # -----------------------------------------------------------------
-target = PracticeTarget(
-    mode="piece",
-    notes=[
-        ExpectedNote("G3", 1),
-        ExpectedNote("D4", 2),
-        ExpectedNote("A4", 3),
-        ExpectedNote("E5", 4),
-    ],
-)
+target = PracticeTarget(mode="piece", active_piece=None)
+
+
+class NoteOut(BaseModel):
+    note: str
+    time: float
+    duration: float
+
+    class Config:
+        from_attributes = True
+
+
+class PieceOut(BaseModel):
+    id: int
+    title: str
+    total_duration: float
+    notes: List[NoteOut]
+
+    class Config:
+        from_attributes = True
+
 
 Base.metadata.create_all(bind=engine)
 
@@ -362,3 +375,25 @@ async def websocket_stream_endpoint(websocket: WebSocket):
 
     except WebSocketDisconnect:
         logger.info("Client disconnected from live telemetry stream.")
+
+
+@app.get("/repertoire/active", response_model=PieceOut)
+def get_active_piece(db: Session = Depends(get_db)):
+    """
+    Fetches the targeted practicing piece from the database,
+    populating its historical note array timeline.
+    """
+    # For now, we query the piece we seeded by its title
+    piece = (
+        db.query(db_models.RepertoirePiece)
+        .filter(db_models.RepertoirePiece.title == "Open Strings Horizon")
+        .first()
+    )
+
+    if not piece:
+        raise HTTPException(
+            status_code=404,
+            detail="Active practice piece template missing from storage.",
+        )
+
+    return piece

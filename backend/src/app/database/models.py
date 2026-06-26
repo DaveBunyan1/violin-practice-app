@@ -58,3 +58,38 @@ class PerformedNoteRecord(Base):
 
     # Bidirectional relationship link back up to the parent record
     session = relationship("SessionRecord", back_populates="performed_notes")
+
+
+class RepertoirePiece(Base):
+    __tablename__ = "repertoire_pieces"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    total_duration = Column(
+        Float, nullable=False
+    )  # Total length of the piece in seconds
+    image_path = Column(String, nullable=True)
+
+    # One-to-Many relationship pointing to the note timeline sequence
+    notes = relationship(
+        "RepertoireNote",
+        back_populates="piece",
+        cascade="all, delete-orphan",
+        order_by="RepertoireNote.time",  # Automatically keeps notes sorted chronologically
+    )
+
+
+class RepertoireNote(Base):
+    __tablename__ = "repertoire_notes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    piece_id = Column(
+        Integer, ForeignKey("repertoire_pieces.id", ondelete="CASCADE"), nullable=False
+    )
+
+    note = Column(String, nullable=False)  # e.g., "G3", "D4", "A4"
+    time = Column(Float, nullable=False)  # Absolute start offset time in seconds
+    duration = Column(Float, nullable=False)  # Total note window duration in seconds
+
+    # Inverse relationship link back to parent metadata
+    piece = relationship("RepertoirePiece", back_populates="notes")

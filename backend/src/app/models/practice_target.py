@@ -6,6 +6,14 @@ from typing import Literal
 class ExpectedNote:
     note: str
     time: float
+    duration: float
+
+
+@dataclass
+class PracticePiece:
+    title: str
+    total_duration: float
+    notes: list[ExpectedNote] = field(default_factory=list)
 
 
 @dataclass
@@ -16,28 +24,34 @@ class PracticeTarget:
     expected_note: str | None = None
 
     # Used in piece mode
-    notes: list[ExpectedNote] = field(default_factory=list)
+    active_piece: PracticePiece | None = None
 
     def get_expected_note(self, current_time: float) -> str | None:
         """
-        Returns the note that should be played at the given time.
+        Returns the note that should be playing at the given elapsed time window.
+        Returns None if the player is in a rest/silence period.
         """
-
         if self.mode == "tuner":
             return self.expected_note
 
-        if not self.notes:
+        if not self.active_piece or not self.active_piece.notes:
             return None
 
-        current = None
-
-        for note in self.notes:
-            if note.time <= current_time:
-                current = note.note
-            else:
+        # Check if current_time falls directly within any note's start/end window
+        for note in self.active_piece.notes:
+            if note.time <= current_time <= (note.time + note.duration):
+                return note.note
+            # Since notes are sorted chronologically, we can break early
+            # if we've passed the current time window entirely
+            elif note.time > current_time:
                 break
 
-        return current
+        return None
 
     def get_expected_sequence(self) -> list[ExpectedNote]:
-        return self.notes
+        """
+        Returns the full sequence of expected notes for evaluation or tracking.
+        """
+        if self.mode == "piece" and self.active_piece:
+            return self.active_piece.notes
+        return []
