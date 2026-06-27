@@ -1,7 +1,6 @@
 from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import desc
 from sqlalchemy.orm import Session
 from datetime import timezone, datetime
 
@@ -14,6 +13,10 @@ from app.models.session_models import (
 )
 from app.core.logging import logger
 from app.core.shared_engines import session_controller, score_engine
+from app.services.session_service import (
+    create_session_history_record,
+    get_historical_sessions,
+)
 
 router = APIRouter()
 
@@ -47,6 +50,9 @@ def end_session(db: Session = Depends(get_db)) -> EndSessionOutput:
         domain_session = session_controller.get_session()
         final_score = score_engine.compute()
 
+        # 2. Extract all performed note sequences tracked in memory during this window
+        performed_notes_list = domain_session.get_performed_notes()
+
         # 2. Build the parent database record row
         db_session_record = models.SessionRecord(
             end_time=datetime.now(timezone.utc),
@@ -57,30 +63,17 @@ def end_session(db: Session = Depends(get_db)) -> EndSessionOutput:
             notes_total=final_score["notes_total"],
         )
 
-        # 3. Add parent record to the transaction so it generates its auto-increment 'id'
-        db.add(db_session_record)
-        db.flush()  # Flushes state to assign id without fully finalizing the commit yet
+        # 3. Delegate data staging completely to your service layer
+        db_session_record = create_session_history_record(
+            db=db, final_score=final_score, performed_notes_list=performed_notes_list
+        )
 
-        # 4. Extract all performed note sequences tracked in memory during this window
-        performed_notes_list = domain_session.get_performed_notes()
-
-        # 5. Convert domain events into child SQL table rows
-        for note_event in performed_notes_list:
-            db_note = models.PerformedNoteRecord(
-                session_id=db_session_record.id,
-                note=note_event["note"],
-                start_time=note_event["start_time"],
-                duration=note_event["duration"],
-                avg_pitch_error_cents=note_event.get("avg_pitch_error_cents"),
-            )
-            db.add(db_note)
-
-        # 6. Commit the entire transaction atomically to disk
+        # 4. Commit the entire transaction atomically here at the transaction boundary line
         db.commit()
 
         session_id = cast(int, db_session_record.id)
 
-        # 7. Wipe memory states in the live engine controller
+        # 5. Wipe memory states in the live engine controller safely after data is on disk
         session_controller.end_session()
 
     except RuntimeError as e:
@@ -103,8 +96,6 @@ def end_session(db: Session = Depends(get_db)) -> EndSessionOutput:
 # -----------------------------------------------------------------
 # Historical Query Endpoints
 # -----------------------------------------------------------------
-
-
 @router.get("/sessions", response_model=list[HistoricalSessionOutput])
 def get_session_history(
     limit: int = 10, db: Session = Depends(get_db)
@@ -117,12 +108,7 @@ def get_session_history(
     """
     try:
         # Query database records sorting by most recent
-        records = (
-            db.query(models.SessionRecord)
-            .order_by(desc(models.SessionRecord.start_time))
-            .limit(limit)
-            .all()
-        )
+        records = get_historical_sessions(db, limit=limit)
 
         # Format database models into our clean API schema output
         history_timeline = []

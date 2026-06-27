@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.database import models
+from app.services.repertoire_service import get_active_practice_piece
 from app.database.connection import get_db
 from app.models.repertoire_models import PieceOut
 
@@ -14,11 +14,7 @@ def get_active_piece(db: Session = Depends(get_db)):
     populating its historical note array timeline.
     """
     # For now, we query the piece we seeded by its title
-    piece = (
-        db.query(models.RepertoirePiece)
-        .filter(models.RepertoirePiece.title == "Open Strings Horizon")
-        .first()
-    )
+    piece = get_active_practice_piece(db, "Open Strings Horizon")
 
     if not piece:
         raise HTTPException(
