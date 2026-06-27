@@ -7,7 +7,7 @@ from app.models.repertoire_models import PieceOut
 router = APIRouter()
 
 
-@router.get("/repertoire/active", response_model=PieceOut)
+@router.get("/active", response_model=PieceOut)
 def get_active_piece(db: Session = Depends(get_db)):
     """
     Fetches the targeted practicing piece from the database,

@@ -1,10 +1,18 @@
 "use client";
 
+// 1. Updated interface to exactly match score_result schema types
 interface PerformanceAnalyticsProps {
   report: {
-    overall_score?: number;
-    pitch_score?: number;
-    timing_score?: number;
+    message?: string;
+    database_id?: number;
+    score_result?: {
+      total_score: number;
+      pitch_accuracy: number;
+      timing_accuracy: number;
+      notes_hit: number;
+      notes_total: number;
+    };
+    // If you plan on passing the raw notes array inside the report payload later:
     performed_notes?: Array<{
       note: string;
       duration: number;
@@ -16,7 +24,10 @@ interface PerformanceAnalyticsProps {
 export default function PerformanceAnalytics({
   report,
 }: PerformanceAnalyticsProps) {
-  if (!report) return null;
+  // Safe extraction helper variable
+  const scores = report?.score_result;
+
+  if (!report || !scores) return null;
 
   return (
     <div
@@ -53,7 +64,8 @@ export default function PerformanceAnalytics({
             Overall Accuracy
           </p>
           <span style={{ fontSize: 28, fontWeight: "bold", color: "#BB86FC" }}>
-            {report.overall_score ?? 0}%
+            {/* 2. Map to total_score */}
+            {scores.total_score ?? 0}%
           </span>
         </div>
 
@@ -70,7 +82,8 @@ export default function PerformanceAnalytics({
             Pitch Precision
           </p>
           <span style={{ fontSize: 28, fontWeight: "bold", color: "#03DAC6" }}>
-            {report.pitch_score ?? 100}%
+            {/* 3. Map to pitch_accuracy */}
+            {scores.pitch_accuracy ?? 0}%
           </span>
         </div>
 
@@ -87,55 +100,60 @@ export default function PerformanceAnalytics({
             Timing & Rhythm
           </p>
           <span style={{ fontSize: 28, fontWeight: "bold", color: "#ffb74d" }}>
-            {report.timing_score ?? 100}%
+            {/* 4. Map to timing_accuracy */}
+            {scores.timing_accuracy ?? 0}%
           </span>
         </div>
       </div>
 
-      <h4 style={{ color: "#e0e0e0", marginBottom: 12 }}>
-        Note Segmentation Details
-      </h4>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {report.performed_notes?.map((item, idx) => (
-          <div
-            key={idx}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              backgroundColor: "#252525",
-              padding: "10px 16px",
-              borderRadius: 4,
-              fontSize: 14,
-            }}
-          >
-            <div style={{ display: "flex", gap: 16 }}>
-              <span style={{ fontWeight: "bold", color: "#BB86FC" }}>
-                {item.note}
-              </span>
-              <span style={{ color: "#aaa" }}>
-                Duration: {item.duration.toFixed(2)}s
-              </span>
-            </div>
-            <span
-              style={{
-                color:
-                  item.avg_pitch_error_cents === null
-                    ? "#aaa"
-                    : Math.abs(item.avg_pitch_error_cents) < 15
-                      ? "#03DAC6"
-                      : "#CF6679",
-                fontWeight: "bold",
-                marginLeft: "auto",
-              }}
-            >
-              {item.avg_pitch_error_cents === null
-                ? "Rest"
-                : `${item.avg_pitch_error_cents > 0 ? "+" : ""}${item.avg_pitch_error_cents.toFixed(1)} cents`}
-            </span>
+      {report.performed_notes && report.performed_notes.length > 0 && (
+        <>
+          <h4 style={{ color: "#e0e0e0", marginBottom: 12 }}>
+            Note Segmentation Details
+          </h4>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {report.performed_notes.map((item, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  backgroundColor: "#252525",
+                  padding: "10px 16px",
+                  borderRadius: 4,
+                  fontSize: 14,
+                }}
+              >
+                <div style={{ display: "flex", gap: 16 }}>
+                  <span style={{ fontWeight: "bold", color: "#BB86FC" }}>
+                    {item.note}
+                  </span>
+                  <span style={{ color: "#aaa" }}>
+                    Duration: {item.duration.toFixed(2)}s
+                  </span>
+                </div>
+                <span
+                  style={{
+                    color:
+                      item.avg_pitch_error_cents === null
+                        ? "#aaa"
+                        : Math.abs(item.avg_pitch_error_cents) < 15
+                          ? "#03DAC6"
+                          : "#CF6679",
+                    fontWeight: "bold",
+                    marginLeft: "auto",
+                  }}
+                >
+                  {item.avg_pitch_error_cents === null
+                    ? "Rest"
+                    : `${item.avg_pitch_error_cents > 0 ? "+" : ""}${item.avg_pitch_error_cents.toFixed(1)} cents`}
+                </span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
     </div>
   );
 }

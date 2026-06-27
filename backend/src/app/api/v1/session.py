@@ -21,7 +21,7 @@ from app.services.session_service import (
 router = APIRouter()
 
 
-@router.post("/session/start")
+@router.post("/start")
 def start_session() -> StartSessionOutput:
     """Starts the active practice session recording window."""
     if session_controller.is_active():
@@ -37,7 +37,7 @@ def start_session() -> StartSessionOutput:
     )
 
 
-@router.post("/session/end")
+@router.post("/end")
 def end_session(db: Session = Depends(get_db)) -> EndSessionOutput:
     """Stops the recording session and calculates the final v1.2.0 score metrics."""
     if not session_controller.is_active():
