@@ -1,8 +1,8 @@
 from typing import List
 import pytest
 
-from app.core.events import PitchObservationEvent
-from app.services.note_segmenter import NoteSegmenter
+from app.models.events import PitchObservationEvent
+from app.pipeline.note_segmenter import NoteSegmenter
 
 
 def test_single_sustained_note():

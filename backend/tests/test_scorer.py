@@ -1,6 +1,6 @@
 from typing import List
 
-from app.core.events import AlignedNote
+from app.models.events import AlignedNote
 from app.scoring.scorer import score_alignment
 
 

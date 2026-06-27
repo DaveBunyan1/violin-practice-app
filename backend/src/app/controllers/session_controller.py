@@ -2,9 +2,9 @@ import time
 import threading
 from typing import Optional
 
-from app.models.session import PracticeSession
-from app.models.practice_target import PracticeTarget
-from app.services.note_segmenter import NoteSegmenter
+from app.pipeline.practice_session import PracticeSession
+from app.pipeline.practice_target import PracticeTarget
+from app.pipeline.note_segmenter import NoteSegmenter
 
 
 class SessionController:

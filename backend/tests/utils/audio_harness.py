@@ -2,7 +2,7 @@ import numpy as np
 from typing import List, Tuple
 import sounddevice as sd  # type: ignore
 
-from app.audio.ingestion import AudioIngestionStream
+from app.pipeline.ingestion import AudioIngestionStream
 
 AudioFrame = Tuple[float, np.ndarray]  # (timestamp_offset, audio_chunk)
 
@@ -33,7 +33,7 @@ class AudioStreamTestHarness:
 
         for dt, audio in frames:
             self.t = 1000.0 + dt
-            self.stream._audio_callback(
+            self.stream._audio_callback(  # type: ignore
                 indata=audio,
                 frames=1024,
                 status_time=None,

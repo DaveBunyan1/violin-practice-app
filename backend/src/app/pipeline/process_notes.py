@@ -1,7 +1,7 @@
 import queue
 
-from app.models.session_controller import SessionController
-from app.core.events import (
+from app.controllers.session_controller import SessionController
+from app.models.events import (
     PerformedNoteEvent,
     LiveDashboardMetrics,
     WebSocketBroadcastEvent,

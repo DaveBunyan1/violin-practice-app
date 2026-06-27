@@ -1,5 +1,5 @@
 from typing import List, Optional, Callable
-from app.core.events import PitchObservationEvent, PerformedNoteEvent
+from app.models.events import PitchObservationEvent, PerformedNoteEvent
 
 
 class NoteSegmenter:

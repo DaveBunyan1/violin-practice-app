@@ -8,8 +8,8 @@ from dotenv import load_dotenv
 import websockets
 from websockets.asyncio.server import ServerConnection
 
-from app.models.session_controller import SessionController
-from app.core.events import WebSocketBroadcastEvent
+from app.controllers.session_controller import SessionController
+from app.models.events import WebSocketBroadcastEvent
 from app.scoring.scoring_engine import ScoreEngine
 
 # ---------------------------------------------------

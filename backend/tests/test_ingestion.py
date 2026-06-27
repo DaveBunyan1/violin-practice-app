@@ -1,7 +1,7 @@
 import numpy as np
 import queue
 from unittest.mock import patch, MagicMock
-from app.audio.ingestion import AudioIngestionStream
+from app.pipeline.ingestion import AudioIngestionStream
 from tests.utils.audio_harness import AudioStreamTestHarness
 
 

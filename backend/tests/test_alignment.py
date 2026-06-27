@@ -1,9 +1,9 @@
 from typing import List
 import pytest
 
-from app.services.alignment import align_notes
-from app.models.practice_target import ExpectedNote
-from app.core.events import PerformedNoteEvent
+from app.pipeline.alignment import align_notes
+from app.pipeline.practice_target import ExpectedNote
+from app.models.events import PerformedNoteEvent
 
 
 def test_perfect_match():

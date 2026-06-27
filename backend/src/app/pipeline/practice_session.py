@@ -3,7 +3,7 @@ import time
 import threading
 from typing import List
 
-from app.core.events import SessionStoredNote
+from app.models.events import SessionStoredNote
 
 
 @dataclass

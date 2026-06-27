@@ -1,6 +1,6 @@
 from typing import List
 
-from app.core.events import AlignedNote, ScoreResult
+from app.models.events import AlignedNote, ScoreResult
 
 
 def score_alignment(aligned: List[AlignedNote]) -> ScoreResult:

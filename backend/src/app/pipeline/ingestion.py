@@ -6,7 +6,7 @@ import sounddevice as sd  # type: ignore
 
 from app.pitch.autocorrelation import estimate_frequency
 from app.pitch.notes import calculate_pitch_error, freq_to_note
-from app.core.events import PitchObservationEvent
+from app.models.events import PitchObservationEvent
 
 # Domain-specific default configuration parameters
 SAMPLE_RATE = 44100

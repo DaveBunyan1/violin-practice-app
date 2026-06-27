@@ -1,7 +1,7 @@
 from typing import List
 
-from app.core.events import AlignedNote, SessionStoredNote
-from app.models.practice_target import ExpectedNote
+from app.models.events import AlignedNote, SessionStoredNote
+from app.pipeline.practice_target import ExpectedNote
 
 
 def align_notes(

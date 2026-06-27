@@ -28,7 +28,6 @@ class PitchObservationEvent(TypedDict):
 class PerformedNoteEvent(TypedDict):
     """
     A stabilized note emitted by NoteSegmenter.
-
     All timestamps are in perf_counter time domain.
     """
 

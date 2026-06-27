@@ -1,6 +1,6 @@
-from app.models.session_controller import SessionController
+from app.controllers.session_controller import SessionController
 from app.scoring.scorer import score_alignment
-from app.services.alignment import align_notes
+from app.pipeline.alignment import align_notes
 
 
 class ScoreEngine:
