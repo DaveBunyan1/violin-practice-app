@@ -16,9 +16,11 @@ export default function RepertoirePage() {
 
       <button>Add Piece</button>
 
-      {pieces.map((piece) => (
-        <PieceCard key={piece.id} piece={piece} />
-      ))}
+      {pieces.length > 0 ? (
+        pieces.map((piece) => <PieceCard key={piece.id} piece={piece} />)
+      ) : (
+        <div>No Pieces Found</div>
+      )}
     </>
   );
 }

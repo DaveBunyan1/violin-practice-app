@@ -1,5 +1,3 @@
-from typing import cast
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import timezone, datetime
@@ -10,6 +8,7 @@ from app.models.session_models import (
     EndSessionOutput,
     HistoricalSessionOutput,
     StartSessionOutput,
+    StartSessionPayload,
 )
 from app.core.logging import logger
 from app.core.shared_engines import session_controller, score_engine
@@ -21,8 +20,8 @@ from app.services.session_service import (
 router = APIRouter()
 
 
-@router.post("/start")
-def start_session() -> StartSessionOutput:
+@router.post("/start", response_model=StartSessionOutput)
+def start_session(payload: StartSessionPayload, db: Session = Depends(get_db)):
     """Starts the active practice session recording window."""
     if session_controller.is_active():
         logger.warning("Session start rejected: session already running.")
@@ -30,7 +29,16 @@ def start_session() -> StartSessionOutput:
             status_code=400, detail="Session is already actively running."
         )
 
-    session_controller.start_session()
+    try:
+        session_controller.start_session(
+            db=db,
+            piece_id=payload.piece_id,
+            start_bar=payload.start_bar,
+            end_bar=payload.end_bar,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
     return StartSessionOutput(
         message="Practice session started successfully.",
         session_active=session_controller.is_active(),
@@ -71,7 +79,7 @@ def end_session(db: Session = Depends(get_db)) -> EndSessionOutput:
         # 4. Commit the entire transaction atomically here at the transaction boundary line
         db.commit()
 
-        session_id = cast(int, db_session_record.id)
+        session_id = db_session_record.id
 
         # 5. Wipe memory states in the live engine controller safely after data is on disk
         session_controller.end_session()
@@ -115,22 +123,18 @@ def get_session_history(
         for record in records:
             history_timeline.append(
                 {
-                    "id": cast(int, record.id),
+                    "id": record.id,
                     "start_time": (
-                        record.start_time.isoformat()
-                        if cast(datetime, record.start_time)
-                        else ""
+                        record.start_time.isoformat() if record.start_time else ""
                     ),
                     "end_time": (
-                        record.end_time.isoformat()
-                        if cast(datetime, record.end_time)
-                        else None
+                        record.end_time.isoformat() if record.end_time else None
                     ),
-                    "total_score": cast(float, record.total_score),
-                    "pitch_accuracy": cast(float, record.pitch_accuracy),
-                    "timing_accuracy": cast(float, record.timing_accuracy),
-                    "notes_hit": cast(int, record.notes_hit),
-                    "notes_total": cast(int, record.notes_total),
+                    "total_score": record.total_score,
+                    "pitch_accuracy": record.pitch_accuracy,
+                    "timing_accuracy": record.timing_accuracy,
+                    "notes_hit": record.notes_hit,
+                    "notes_total": record.notes_total,
                 }
             )
 

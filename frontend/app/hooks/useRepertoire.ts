@@ -4,6 +4,7 @@ import { Piece } from "../types/Piece";
 
 export function useRepertoire() {
   const [pieces, setPieces] = useState<Piece[]>([]);
+  const [selectedPiece, setSelectedPiece] = useState<Piece | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -12,5 +13,15 @@ export function useRepertoire() {
       .finally(() => setLoading(false));
   }, []);
 
-  return { pieces, loading };
+  const selectPiece = (piece: Piece) => {
+    setSelectedPiece(piece);
+  };
+
+  return {
+    pieces,
+    selectedPiece,
+    selectPiece,
+    setSelectedPiece,
+    loading,
+  };
 }

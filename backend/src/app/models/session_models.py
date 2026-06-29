@@ -1,6 +1,14 @@
+from typing import Optional
+
 from pydantic import BaseModel
 
 from app.models.events import ScoreResult
+
+
+class StartSessionPayload(BaseModel):
+    piece_id: int
+    start_bar: Optional[int] = None  # None means play from the beginning
+    end_bar: Optional[int] = None  # None means play to the end
 
 
 class StartSessionOutput(BaseModel):

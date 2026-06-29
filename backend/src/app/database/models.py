@@ -1,5 +1,7 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime
-from sqlalchemy.orm import relationship
+from typing import List, Optional
+
+from sqlalchemy import Integer, String, Float, ForeignKey, DateTime
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime, timezone
 from app.database.connection import Base
 
@@ -11,22 +13,21 @@ class SessionRecord(Base):
 
     __tablename__ = "sessions"
 
-    id = Column(Integer, primary_key=True, index=True)
-    start_time = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    start_time: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
     )
-    end_time = Column(DateTime, nullable=True)
+    end_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Final v1.2.0 scoring metrics aggregated on completion
-    total_score = Column(Float, nullable=False, default=0.0)
-    pitch_accuracy = Column(Float, nullable=False, default=0.0)
-    timing_accuracy = Column(Float, nullable=False, default=0.0)
-    notes_hit = Column(Integer, nullable=False, default=0)
-    notes_total = Column(Integer, nullable=False, default=0)
+    total_score: Mapped[float] = mapped_column(Float, default=0.0)
+    pitch_accuracy: Mapped[float] = mapped_column(Float, default=0.0)
+    timing_accuracy: Mapped[float] = mapped_column(Float, default=0.0)
+    notes_hit: Mapped[int] = mapped_column(Integer, default=0)
+    notes_total: Mapped[int] = mapped_column(Integer, default=0)
 
     # Relationship to child notes.
-    # 'cascade="all, delete-orphan"' ensures if a session is deleted, its notes are cleaned up too.
-    performed_notes = relationship(
+    performed_notes: Mapped[List["PerformedNoteRecord"]] = relationship(
         "PerformedNoteRecord", back_populates="session", cascade="all, delete-orphan"
     )
 
@@ -39,57 +40,68 @@ class PerformedNoteRecord(Base):
 
     __tablename__ = "performed_notes"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
 
     # Foreign Key linking back to the parent 'sessions' table
-    session_id = Column(
+    session_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False
     )
 
     # Core note performance properties from your domain events
-    note = Column(String, nullable=False)  # e.g., "A4"
-    start_time = Column(
+    note: Mapped[str] = mapped_column(String, nullable=False)  # e.g., "A4"
+    start_time: Mapped[float] = mapped_column(
         Float, nullable=False
     )  # Offset timestamp relative to session start
-    duration = Column(Float, nullable=False)
+    duration: Mapped[float] = mapped_column(Float, nullable=False)
 
     # v1.2.0 precision data layer addition
-    avg_pitch_error_cents = Column(Float, nullable=True)
+    avg_pitch_error_cents: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     # Bidirectional relationship link back up to the parent record
-    session = relationship("SessionRecord", back_populates="performed_notes")
+    session: Mapped["SessionRecord"] = relationship(
+        "SessionRecord", back_populates="performed_notes"
+    )
 
 
 class RepertoirePiece(Base):
     __tablename__ = "repertoire_pieces"
 
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, nullable=False)
-    total_duration = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    total_duration: Mapped[float] = mapped_column(
         Float, nullable=False
     )  # Total length of the piece in seconds
-    image_path = Column(String, nullable=True)
+    image_path: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # One-to-Many relationship pointing to the note timeline sequence
-    notes = relationship(
+    notes: Mapped[List["RepertoireNote"]] = relationship(
         "RepertoireNote",
         back_populates="piece",
         cascade="all, delete-orphan",
         order_by="RepertoireNote.time",  # Automatically keeps notes sorted chronologically
     )
 
+    bpm: Mapped[int] = mapped_column(Integer, default=120)
+    time_signature_numerator: Mapped[int] = mapped_column(Integer, default=4)
+
 
 class RepertoireNote(Base):
     __tablename__ = "repertoire_notes"
 
-    id = Column(Integer, primary_key=True, index=True)
-    piece_id = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    piece_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("repertoire_pieces.id", ondelete="CASCADE"), nullable=False
     )
 
-    note = Column(String, nullable=False)  # e.g., "G3", "D4", "A4"
-    time = Column(Float, nullable=False)  # Absolute start offset time in seconds
-    duration = Column(Float, nullable=False)  # Total note window duration in seconds
+    note: Mapped[str] = mapped_column(String, nullable=False)  # e.g., "G3", "D4", "A4"
+    time: Mapped[float] = mapped_column(
+        Float, nullable=False
+    )  # Absolute start offset time in seconds
+    duration: Mapped[float] = mapped_column(
+        Float, nullable=False
+    )  # Total note window duration in seconds
 
     # Inverse relationship link back to parent metadata
-    piece = relationship("RepertoirePiece", back_populates="notes")
+    piece: Mapped["RepertoirePiece"] = relationship(
+        "RepertoirePiece", back_populates="notes"
+    )
