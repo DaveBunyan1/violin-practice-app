@@ -1,4 +1,5 @@
 import { api } from "../lib/api";
+import { CreatePieceInput } from "../types/CreatePiece";
 import { Piece } from "../types/Piece";
 
 // READ
@@ -15,7 +16,7 @@ export async function getPiece(id: number): Promise<Piece> {
 }
 
 // WRITE
-export async function createPiece(piece: Partial<Piece>): Promise<Piece> {
+export async function createPiece(piece: CreatePieceInput): Promise<Piece> {
   return api.post<Piece>("/repertoire", piece);
 }
 

@@ -7,10 +7,15 @@ export function useRepertoire() {
   const [selectedPiece, setSelectedPiece] = useState<Piece | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    getRepertoire()
+  const load = () => {
+    setLoading(true);
+    return getRepertoire()
       .then(setPieces)
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load;
   }, []);
 
   const selectPiece = (piece: Piece) => {
@@ -23,5 +28,6 @@ export function useRepertoire() {
     selectPiece,
     setSelectedPiece,
     loading,
+    refresh: load,
   };
 }

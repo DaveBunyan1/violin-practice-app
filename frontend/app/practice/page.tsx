@@ -12,9 +12,20 @@ import { usePracticeSession } from "../hooks/usePracticeSession";
 import { useRepertoire } from "../hooks/useRepertoire";
 
 export default function PracticePage() {
-  const { pieces, selectedPiece, selectPiece, loading } = useRepertoire();
+  const {
+    pieces,
+    selectedPiece,
+    selectPiece,
+    loading: repertoireLoading,
+  } = useRepertoire();
   const { config, setConfig } = usePracticeConfig();
-  const { start, loading: isStartingSession } = usePracticeSession(config);
+  const {
+    start,
+    end,
+    status,
+    loading: sessionLoading,
+    active,
+  } = usePracticeSession(config);
   // Load repertoire once on mount
 
   const handlePieceSelected = (piece: Piece) => {
@@ -31,7 +42,7 @@ export default function PracticePage() {
     await start(selectedPiece.id);
   };
 
-  if (loading) return <p>Loading...</p>;
+  if (repertoireLoading) return <p>Loading...</p>;
 
   return (
     <div
@@ -84,7 +95,7 @@ export default function PracticePage() {
 
       <StartPracticeButton
         disabled={!selectedPiece}
-        loading={isStartingSession}
+        loading={sessionLoading || status === "starting"}
         onClick={handleStartSession}
       />
     </div>
