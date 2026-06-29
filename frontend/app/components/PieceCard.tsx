@@ -11,7 +11,7 @@ export default function PieceCard({ piece }: Props) {
 
       <p>Duration: {piece.total_duration.toFixed(1)}s</p>
 
-      <p>Notes: {piece.notes.length}s</p>
+      <p>Notes: {piece.notes.length}</p>
 
       <button>Practice</button>
     </div>

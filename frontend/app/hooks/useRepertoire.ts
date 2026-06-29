@@ -7,15 +7,18 @@ export function useRepertoire() {
   const [selectedPiece, setSelectedPiece] = useState<Piece | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const load = () => {
+  const load = async () => {
     setLoading(true);
-    return getRepertoire()
-      .then(setPieces)
-      .finally(() => setLoading(false));
+    try {
+      const data = await getRepertoire();
+      setPieces(data);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    load;
+    load();
   }, []);
 
   const selectPiece = (piece: Piece) => {

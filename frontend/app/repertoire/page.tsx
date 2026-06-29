@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import PieceCard from "../components/PieceCard";
 import CreatePieceForm from "../components/repertoire/CreatePieceForm";

@@ -30,11 +30,6 @@ export default function PracticePage() {
 
   const handlePieceSelected = (piece: Piece) => {
     selectPiece(piece);
-
-    setConfig((prev) => ({
-      ...prev,
-      tempo: piece.bpm,
-    }));
   };
 
   const handleStartSession = async () => {
