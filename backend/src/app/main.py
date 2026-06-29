@@ -86,7 +86,10 @@ async def lifespan(app: FastAPI):
 # 2. FastAPI Initialization
 # -----------------------------------------------------------------
 app = FastAPI(
-    title="Violin Intonation Pipeline API", version="1.3.0", lifespan=lifespan
+    title="Violin Intonation Pipeline API",
+    version="1.3.0",
+    lifespan=lifespan,
+    redirect_slashes=False,
 )
 
 app.add_middleware(

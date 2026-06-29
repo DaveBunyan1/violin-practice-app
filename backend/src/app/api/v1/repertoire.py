@@ -1,10 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.services.repertoire_service import get_active_practice_piece
+from app.services.repertoire_service import (
+    get_active_practice_piece,
+    get_all_repertoire,
+)
 from app.database.connection import get_db
 from app.models.repertoire_models import PieceOut
 
 router = APIRouter()
+
+
+@router.get("", response_model=list[PieceOut])
+def get_repertoire(db: Session = Depends(get_db)):
+    return get_all_repertoire(db)
 
 
 @router.get("/active", response_model=PieceOut)

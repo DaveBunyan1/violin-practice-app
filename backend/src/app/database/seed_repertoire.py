@@ -8,7 +8,7 @@ def seed_data():
         # Check if it's already seeded to prevent duplicates
         exists = (
             db.query(RepertoirePiece)
-            .filter(RepertoirePiece.title == "Open Strings")
+            .filter(RepertoirePiece.title == "Open Strings Horizon")
             .first()
         )
         if exists:
