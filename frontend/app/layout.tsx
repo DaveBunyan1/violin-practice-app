@@ -39,7 +39,7 @@ export default function RootLayout({
         <NavigationBar />
         <main
           style={{
-            maxWidth: 1100,
+            maxWidth: "100%",
             margin: "0 auto",
             padding: 32,
           }}

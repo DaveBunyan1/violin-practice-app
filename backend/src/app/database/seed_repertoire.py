@@ -139,13 +139,13 @@ def seed_data():
                 ),
                 # Bar 8
                 RepertoireNote(
-                    piece_id=piece.id, note="G4", time=beat * 28, duration=beat
+                    piece_id=piece.id, note="F#4", time=beat * 28, duration=beat
                 ),
                 RepertoireNote(
-                    piece_id=piece.id, note="G4", time=beat * 29, duration=beat
+                    piece_id=piece.id, note="E4", time=beat * 29, duration=beat
                 ),
                 RepertoireNote(
-                    piece_id=piece.id, note="G4", time=beat * 30, duration=beat
+                    piece_id=piece.id, note="D4", time=beat * 30, duration=beat
                 ),
                 # Bar 9
                 RepertoireNote(
