@@ -9,6 +9,7 @@ class StartSessionPayload(BaseModel):
     piece_id: int
     start_bar: Optional[int] = None  # None means play from the beginning
     end_bar: Optional[int] = None  # None means play to the end
+    target_bpm: int
 
 
 class StartSessionOutput(BaseModel):

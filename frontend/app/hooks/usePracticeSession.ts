@@ -24,7 +24,10 @@ export function usePracticeSession(config: PracticeConfig) {
 
       setSession({
         status: "active",
-        sessionId: res.session_id, // if backend adds later
+        // 🌟 FIX: Use type casting or check your StartSessionOutput interface schema
+        // fallback to 'res.id' or 'res.sessionId' if 'session_id' isn't explicitly typed
+        sessionId:
+          (res as any).session_id || (res as any).id || (res as any).sessionId,
         startedAt: Date.now(),
       });
 
@@ -41,9 +44,16 @@ export function usePracticeSession(config: PracticeConfig) {
     setStatus("ending");
 
     try {
-      await fetch("http://localhost:8000/session/end", {
+      // 🌟 FIX: Capture the raw performance summary payload back from the backend track pipeline!
+      const response = await fetch("http://localhost:8000/session/end", {
         method: "POST",
       });
+
+      if (!response.ok) {
+        throw new Error(`Server errored with status code: ${response.status}`);
+      }
+
+      const reportData = await response.json();
 
       setSession((prev) =>
         prev
@@ -56,9 +66,13 @@ export function usePracticeSession(config: PracticeConfig) {
       );
 
       setStatus("ended");
+
+      // Return this directly to your 'handleEndSession' workflow inside PracticePage.tsx
+      return reportData;
     } catch (e: any) {
       setStatus("error");
       setError(e?.message ?? "Failed to end session");
+      return null;
     }
   };
 

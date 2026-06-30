@@ -30,6 +30,7 @@ class SessionController:
         piece_id: int,
         start_bar: Optional[int] = None,
         end_bar: Optional[int] = None,
+        target_bpm: Optional[int] = None,
     ) -> None:
         """Starts a fresh practice session. Threads calling get_session will block momentarily during initialization."""
         with self._lock:
@@ -38,7 +39,14 @@ class SessionController:
             if not db_piece:
                 raise ValueError(f"Repertoire piece with ID {piece_id} not found.")
 
-            seconds_per_beat = 60.0 / db_piece.bpm
+            original_bpm = (
+                db_piece.bpm if db_piece.bpm else 116
+            )  # 116 hardcoded is an issue
+            effective_bpm = target_bpm if target_bpm else original_bpm
+
+            speed_multiplier = original_bpm / effective_bpm
+
+            seconds_per_beat = 60.0 / effective_bpm
             seconds_per_bar = seconds_per_beat * db_piece.time_signature_numerator
 
             start_time_offset = 0.0
@@ -53,17 +61,20 @@ class SessionController:
             expected_notes = []
             for note_model in db_piece.notes:
                 # Only include notes that fall within the selected bar time window
-                if start_time_offset <= note_model.time <= end_time_offset:
+                scaled_note_time = note_model.time * speed_multiplier
+                if start_time_offset <= scaled_note_time <= end_time_offset:
 
                     # CRITICAL: Shift the target time back to 0.0 so the
                     # countdown/timer aligns perfectly with when they start playing!
                     adjusted_time = note_model.time - start_time_offset
 
+                    scaled_duration = note_model.duration * speed_multiplier
+
                     expected_notes.append(
                         ExpectedNote(
                             note=note_model.note,
                             time=adjusted_time,
-                            duration=note_model.duration,
+                            duration=scaled_duration,
                         )
                     )
 

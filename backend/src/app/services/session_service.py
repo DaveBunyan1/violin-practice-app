@@ -8,6 +8,7 @@ from app.models.events import PerformedNoteEvent, ScoreResult
 
 def create_session_history_record(
     db: Session,
+    piece_id: int,
     final_score: ScoreResult,
     performed_notes_list: List[PerformedNoteEvent],
 ) -> models.SessionRecord:
@@ -17,6 +18,7 @@ def create_session_history_record(
     """
     # 1. Instantiate parent record
     db_session_record = models.SessionRecord(
+        piece_id=piece_id,
         end_time=datetime.now(timezone.utc),
         total_score=final_score["total_score"],
         pitch_accuracy=final_score["pitch_accuracy"],

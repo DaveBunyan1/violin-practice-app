@@ -14,6 +14,10 @@ class SessionRecord(Base):
     __tablename__ = "sessions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    piece_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("repertoire_pieces.id", ondelete="CASCADE"), nullable=False
+    )
+
     start_time: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
     )
@@ -30,6 +34,8 @@ class SessionRecord(Base):
     performed_notes: Mapped[List["PerformedNoteRecord"]] = relationship(
         "PerformedNoteRecord", back_populates="session", cascade="all, delete-orphan"
     )
+
+    piece: Mapped["RepertoirePiece"] = relationship("RepertoirePiece")
 
 
 class PerformedNoteRecord(Base):

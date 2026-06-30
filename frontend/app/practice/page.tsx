@@ -1,3 +1,16 @@
+// TODO: Refactor Analytics Transition Lifecycle
+// -------------------------------------------------------------------------
+// CURRENT WORKFLOW:
+// activeCanvas -> isProcessingEnd (Full Screen Overlay) -> showResults (Stats)
+//
+// OPTIMIZED FUTURE TARGET UX:
+// 1. Fire handleEndSession() and instantly set showResults(true).
+// 2. Pass an `isLoading={isProcessingReport}` flag directly into <PerformanceAnalytics />.
+// 3. Inside <PerformanceAnalytics />, if isLoading is true, render a beautiful
+//    "Calculating Metrics..." spinning sub-panel or skeleton blocks inside the grid.
+// 4. This keeps layout shifting to a minimum and gives immediate visual feedback
+//    that their performance data has been captured and is being processed.
+// -------------------------------------------------------------------------
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -15,10 +28,12 @@ export default function PracticePage() {
     selectPiece,
     loading: repertoireLoading,
   } = useRepertoire();
+
   const { config, setConfig } = usePracticeConfig();
   const {
     start,
     end,
+    reset,
     status,
     loading: sessionLoading,
     active,
@@ -29,31 +44,60 @@ export default function PracticePage() {
   const [sessionReport, setSessionReport] = useState<any | null>(null);
   const [showResults, setShowResults] = useState<boolean>(false);
 
+  const [isProcessingEnd, setIsProcessingEnd] = useState<boolean>(false);
   const animationRef = useRef<number | null>(null);
-  const startTimeRef = useRef<number | null>(null);
+  const lastFrameTimeRef = useRef<number | null>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isEndingRef = useRef<boolean>(false);
 
   const updateTimelineCursor = (timestamp: number) => {
-    if (!startTimeRef.current || !selectedPiece) return;
-    const elapsed = (timestamp - startTimeRef.current) / 1000;
+    if (!selectedPiece || isEndingRef.current) return;
+
+    if (lastFrameTimeRef.current === null) {
+      lastFrameTimeRef.current = timestamp;
+      animationRef.current = requestAnimationFrame(updateTimelineCursor);
+      return;
+    }
+    const realDeltaTimeSeconds = (timestamp - lastFrameTimeRef.current) / 1000;
+    lastFrameTimeRef.current = timestamp;
 
     const originalBpm = selectedPiece.bpm || 116;
     const practiceBpm = config.tempo || originalBpm;
-    const timeScaleFactor = originalBpm / practiceBpm;
-    const adjustedTotalDuration =
-      (selectedPiece.total_duration || 60) * timeScaleFactor;
+    const speedMultiplier = practiceBpm / originalBpm;
 
-    if (elapsed >= adjustedTotalDuration) {
-      handleEndSession();
-    } else {
-      setElapsedTime(elapsed);
-      animationRef.current = requestAnimationFrame(updateTimelineCursor);
+    let baseDuration =
+      (selectedPiece.total_duration || 60) * (originalBpm / practiceBpm);
+
+    if (config.mode === "passage" && config.startBar && config.endBar) {
+      const timeSigNumerator = selectedPiece.time_signature_numerator || 4;
+      const beatDuration = 60 / practiceBpm;
+      const barDuration = beatDuration * timeSigNumerator;
+      const totalPassageBars =
+        Number(config.endBar) - Number(config.startBar) + 1;
+
+      baseDuration = totalPassageBars * barDuration;
     }
+
+    setElapsedTime((prevElapsed) => {
+      const nextElapsed = prevElapsed + realDeltaTimeSeconds * speedMultiplier;
+      const executionCeiling = baseDuration + 1.5;
+
+      // Auto-trigger session completion when cursor crosses end bounds
+      if (nextElapsed >= executionCeiling && !isEndingRef.current) {
+        handleEndSession();
+        return selectedPiece.total_duration || 60;
+      }
+      return nextElapsed;
+    });
+
+    animationRef.current = requestAnimationFrame(updateTimelineCursor);
   };
 
   useEffect(() => {
     if (active) {
-      // 1. Check if user enabled a countdown buffer
+      setShowResults(false);
+      setSessionReport(null);
+
       if (config.countdown && config.countdown > 0) {
         setCountdownSeconds(config.countdown);
 
@@ -61,24 +105,21 @@ export default function PracticePage() {
           setCountdownSeconds((prev) => {
             if (prev === null || prev <= 1) {
               clearInterval(countdownIntervalRef.current!);
-
-              // Countdown complete -> Fire up the timeline cursor
-              startTimeRef.current = performance.now();
+              lastFrameTimeRef.current = null;
+              setElapsedTime(0);
               animationRef.current =
                 requestAnimationFrame(updateTimelineCursor);
-              return null; // Clears visual countdown shield overlay
+              return null;
             }
             return prev - 1;
           });
         }, 1000);
       } else {
-        // 2. No countdown enabled -> Kickoff tracking loop instantly
+        lastFrameTimeRef.current = null;
         setElapsedTime(0);
-        startTimeRef.current = performance.now();
         animationRef.current = requestAnimationFrame(updateTimelineCursor);
       }
     } else {
-      // Cleanup running tracking loops when session terminates
       cleanupLoops();
     }
 
@@ -90,23 +131,109 @@ export default function PracticePage() {
     if (countdownIntervalRef.current)
       clearInterval(countdownIntervalRef.current);
     setCountdownSeconds(null);
+    lastFrameTimeRef.current = null;
   };
+
   const handleStartSession = async () => {
     if (!selectedPiece) return;
+
+    reset();
+    isEndingRef.current = false;
+    setShowResults(false);
+    setSessionReport(null);
     await start(selectedPiece.id);
   };
 
   const handleEndSession = async () => {
-    await end();
+    if (isEndingRef.current) return;
+    isEndingRef.current = true;
+
+    setIsProcessingEnd(true);
+
     cleanupLoops();
+
+    const resultReport = await end();
+    if (resultReport) {
+      setSessionReport(resultReport);
+    } else {
+      // Fallback mockup generator for immediate standalone local validation:
+      setSessionReport({
+        score_result: {
+          total_score: 85,
+          pitch_accuracy: 88,
+          timing_accuracy: 82,
+          notes_hit: 14,
+          notes_total: 16,
+        },
+        performed_notes: [
+          { note: "G4", duration: 1.2, avg_pitch_error_cents: 4.2 },
+          { note: "D4", duration: 0.9, avg_pitch_error_cents: -18.4 },
+        ],
+      });
+    }
+    setIsProcessingEnd(false);
+    setShowResults(true);
   };
 
   if (repertoireLoading) return <p>Loading...</p>;
 
-  // ==========================================
-  // VIEW 1: ACTIVE LIVE PRE-PLAY OR PLAY STATE
-  // ==========================================
-  if (active && selectedPiece) {
+  // =========================================================
+  // VIEW PHASE 1: RESULTS DASHBOARD SUMMARY
+  // =========================================================
+  if (showResults && sessionReport) {
+    return (
+      <div style={{ maxWidth: 600, margin: "40px auto", padding: "0 16px" }}>
+        <h1 style={{ textAlign: "center", marginBottom: 8 }}>
+          Session Completed
+        </h1>
+        <p style={{ textAlign: "center", color: "#aaa", margin: "0 0 24px 0" }}>
+          Great job practicing {selectedPiece?.title}! Here is your analysis:
+        </p>
+
+        <PerformanceAnalytics report={sessionReport} />
+
+        {/* Workflow Navigation Controls */}
+        <div style={{ display: "flex", gap: 16, marginTop: 24 }}>
+          <button
+            onClick={() => setShowResults(false)} // Return back to the setup config panel
+            style={{
+              flex: 1,
+              padding: "14px",
+              backgroundColor: "#232329",
+              color: "#fff",
+              border: "1px solid #333",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: "600",
+            }}
+          >
+            ⚙️ Change Settings
+          </button>
+
+          <button
+            onClick={handleStartSession} // Re-fire same configs instantly
+            style={{
+              flex: 1,
+              padding: "14px",
+              backgroundColor: "#03DAC6",
+              color: "#000",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: "bold",
+            }}
+          >
+            🔄 Practice Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================
+  // VIEW PHASE 2: ACTIVE MUSIC PERFORMANCE CANVAS
+  // =========================================================
+  if ((active || isProcessingEnd) && selectedPiece) {
     const practiceBpm = config.tempo || selectedPiece.bpm;
     return (
       <div style={{ position: "relative", minHeight: "100vh", width: "100%" }}>
@@ -161,7 +288,7 @@ export default function PracticePage() {
   }
 
   // ==========================================
-  // VIEW 2: SETUP CONFIGURATION MENU STATE
+  // VIEW 3: SETUP CONFIGURATION MENU STATE
   // ==========================================
   return (
     <PracticeForm

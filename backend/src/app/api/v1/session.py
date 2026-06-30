@@ -1,3 +1,5 @@
+import time
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import timezone, datetime
@@ -35,6 +37,7 @@ def start_session(payload: StartSessionPayload, db: Session = Depends(get_db)):
             piece_id=payload.piece_id,
             start_bar=payload.start_bar,
             end_bar=payload.end_bar,
+            target_bpm=payload.target_bpm,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -61,8 +64,16 @@ def end_session(db: Session = Depends(get_db)) -> EndSessionOutput:
         # 2. Extract all performed note sequences tracked in memory during this window
         performed_notes_list = domain_session.get_performed_notes()
 
+        actual_start = datetime.fromtimestamp(
+            datetime.now(timezone.utc).timestamp()
+            - (time.perf_counter() - domain_session.start_time),
+            tz=timezone.utc,
+        )
+
         # 2. Build the parent database record row
         db_session_record = models.SessionRecord(
+            piece_id=domain_session.piece_id,
+            start_time=actual_start,
             end_time=datetime.now(timezone.utc),
             total_score=final_score["total_score"],
             pitch_accuracy=final_score["pitch_accuracy"],
@@ -73,7 +84,10 @@ def end_session(db: Session = Depends(get_db)) -> EndSessionOutput:
 
         # 3. Delegate data staging completely to your service layer
         db_session_record = create_session_history_record(
-            db=db, final_score=final_score, performed_notes_list=performed_notes_list
+            db=db,
+            piece_id=domain_session.piece_id,
+            final_score=final_score,
+            performed_notes_list=performed_notes_list,
         )
 
         # 4. Commit the entire transaction atomically here at the transaction boundary line
