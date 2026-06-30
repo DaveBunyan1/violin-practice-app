@@ -1,6 +1,6 @@
 "use client";
 
-import RowContainer from "./music/rows/RowContainer";
+import RowContainer from "../music/rows/RowContainer";
 import { MusicalNote } from "@/app/types/Note";
 
 // Structuring our incoming structural dataset schema matching the backend pipeline

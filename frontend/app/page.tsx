@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useRef } from "react";
 import ControlDeck from "./components/ControlDeck";
-import TimelineCanvas from "./components/TimelineCanvas";
-import PerformanceAnalytics from "./components/PerformanceAnalytics";
+import TimelineCanvas from "./components/practice/TimelineCanvas";
+import PerformanceAnalytics from "./components/practice/PerformanceAnalytics";
 
 type TargetNote = { note: string; time: number; duration: number };
 type ActivePiece = {

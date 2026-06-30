@@ -21,43 +21,37 @@ export default function BarContainer({
     <div
       style={{
         width: `${barWidth}px`,
-        backgroundColor: "#16161a",
-        border: "1px solid #232329",
-        borderRadius: "8px",
-        padding: "0px",
+        backgroundColor: "transparent", // Cleaned out card backing
+        border: "none", // Stripped all native frame borders
+        padding: "0px", // Flushed edge-to-edge
         display: "flex",
         flexDirection: "column",
         gap: "8px",
         boxSizing: "border-box",
-        flexShrink: 0, // Prevents layout wrappers from crushing the bar width
+        flexShrink: 0,
       }}
     >
-      {/* Bar Heading */}
+      {/* Bar Header */}
       <div
         style={{
-          color: "#dddddd",
+          color: "#ddd",
           fontSize: "13px",
           fontWeight: "600",
+          paddingLeft: "4px",
           userSelect: "none",
         }}
       >
         Bar {barNumber}
       </div>
 
-      {/* Beat Indicators Grid (1, 2, 3...) */}
-      <div
-        style={{
-          display: "flex",
-          width: "100%",
-          boxSizing: "border-box",
-        }}
-      >
+      {/* Beat Indicators Grid */}
+      <div style={{ display: "flex", width: "100%", boxSizing: "border-box" }}>
         {Array.from({ length: timeSignatureNumerator }).map((_, beatIdx) => (
           <span
             key={beatIdx}
             style={{
               width: `${baseWidthPerBeat}px`,
-              color: "#dddddd",
+              color: "#ddd",
               fontSize: "11px",
               textAlign: "center",
               fontWeight: "500",
@@ -74,10 +68,10 @@ export default function BarContainer({
         style={{
           display: "flex",
           width: "100%",
-          height: "50px", // Matches NoteBlock height
-          borderRadius: "6px",
-          overflow: "hidden", // Clean clip for the internal flush notes
-          backgroundColor: "#20262E", // Base empty rest backing tracking
+          height: "50px",
+          borderRadius: "4px",
+          overflow: "hidden",
+          backgroundColor: "#20262E",
         }}
       >
         {notes.map((note, index) => (

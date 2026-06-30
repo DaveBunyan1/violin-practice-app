@@ -60,16 +60,22 @@ export default function RowContainer({
   return (
     <div
       style={{
-        position: "relative", // Anchors our scanning timeline cursor line
-        width: `${totalRowWidth}px`, // Collapses perfectly to match the exact beat footprint
-        margin: "0 auto 24px auto", // Centers the rows cleanly on your sheet workspace
+        position: "relative",
+        width: `${totalRowWidth + 32}px`,
+        backgroundColor: "#16161a",
+        border: "1px solid #232329",
+        borderRadius: "10px",
+        padding: "16px",
+        margin: "0 auto 24px auto",
+        boxSizing: "border-box",
       }}
     >
-      {/* Horizontal Flex Grid housing our calculated Bar Containers */}
+      {/* Horizontal Flex Grid housing our transparent Bar Containers */}
       <div
         style={{
+          position: "relative",
           display: "flex",
-
+          gap: "0px",
           width: "100%",
         }}
       >
@@ -81,17 +87,26 @@ export default function RowContainer({
             notes={bar.notes}
           />
         ))}
+
+        {/* Placeholder for when switching to sheet music */}
+        {lineBars.map((_, offset) => {
+          // Skip drawing a line after the very last bar panel on this row line
+          if (offset === lineBars.length - 1) return null;
+
+          const currentBarWidth = timeSignatureNumerator * baseWidthPerBeat;
+          const lineLeftPosition = (offset + 1) * currentBarWidth;
+        })}
       </div>
 
       {/* Global Playback Tracking Cursor */}
       {isCursorInLine && (
         <>
-          {/* Cursor Head Down-Arrow Indicator */}
+          {/* Adjusted left mapping to account for the parent wrapper's 16px left padding */}
           <div
             style={{
               position: "absolute",
-              left: `calc(${cursorPercent}% - 6px)`,
-              top: "-8px",
+              left: `calc(16px + ${cursorPercent}% - 6px)`,
+              top: "6px",
               width: "0px",
               height: "0px",
               borderLeft: "6px solid transparent",
@@ -100,17 +115,15 @@ export default function RowContainer({
               zIndex: 11,
             }}
           />
-          {/* Vertical Scanning Core Matrix Line */}
           <div
             style={{
               position: "absolute",
-              left: `${cursorPercent}%`,
-              top: 0,
+              left: `calc(16px + ${cursorPercent}%)`,
+              top: "16px",
               width: "2px",
-              height: "100%",
+              height: "calc(100% - 32px)", // Snaps the line precisely within the cushioned row padding frame
               backgroundColor: "#03DAC6",
               boxShadow: "0 0 8px #03DAC6",
-              // Instant tracking response if practicing live, otherwise standard interface easing interpolation
               transition: isSessionActive ? "none" : "left 0.1s linear",
               zIndex: 10,
               pointerEvents: "none",
