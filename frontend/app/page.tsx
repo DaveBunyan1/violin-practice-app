@@ -10,8 +10,8 @@ type ActivePiece = {
   id: number;
   title: string;
   total_duration: number;
-  bpm: number; // Wired up
-  time_signature_numerator: number; // Wired up
+  bpm: number;
+  time_signature_numerator: number;
   notes: TargetNote[];
 };
 

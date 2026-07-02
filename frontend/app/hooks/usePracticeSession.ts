@@ -8,7 +8,7 @@ export function usePracticeSession(config: PracticeConfig) {
   const [session, setSession] = useState<PracticeSession | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const start = async (pieceId: number) => {
+  const start = async (pieceId: number, countdownSeconds: number) => {
     if (status !== "idle" && status !== "ended") return;
 
     setStatus("starting");
@@ -20,6 +20,7 @@ export function usePracticeSession(config: PracticeConfig) {
         start_bar: config.mode === "passage" ? config.startBar : null,
         end_bar: config.mode === "passage" ? config.endBar : null,
         target_bpm: config.tempo,
+        countdownSeconds: countdownSeconds,
       });
 
       setSession({

@@ -10,6 +10,7 @@ class StartSessionPayload(BaseModel):
     start_bar: Optional[int] = None  # None means play from the beginning
     end_bar: Optional[int] = None  # None means play to the end
     target_bpm: int
+    countdownSeconds: Optional[float] = 0.0
 
 
 class StartSessionOutput(BaseModel):

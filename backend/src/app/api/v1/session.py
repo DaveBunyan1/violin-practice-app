@@ -38,6 +38,7 @@ def start_session(payload: StartSessionPayload, db: Session = Depends(get_db)):
             start_bar=payload.start_bar,
             end_bar=payload.end_bar,
             target_bpm=payload.target_bpm,
+            countdownSeconds=payload.countdownSeconds,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

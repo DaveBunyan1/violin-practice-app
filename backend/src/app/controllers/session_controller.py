@@ -31,6 +31,7 @@ class SessionController:
         start_bar: Optional[int] = None,
         end_bar: Optional[int] = None,
         target_bpm: Optional[int] = None,
+        countdownSeconds: Optional[float] = 0.0,
     ) -> None:
         """Starts a fresh practice session. Threads calling get_session will block momentarily during initialization."""
         with self._lock:
@@ -62,11 +63,12 @@ class SessionController:
             for note_model in db_piece.notes:
                 # Only include notes that fall within the selected bar time window
                 scaled_note_time = note_model.time * speed_multiplier
+
                 if start_time_offset <= scaled_note_time <= end_time_offset:
 
                     # CRITICAL: Shift the target time back to 0.0 so the
                     # countdown/timer aligns perfectly with when they start playing!
-                    adjusted_time = note_model.time - start_time_offset
+                    adjusted_time = scaled_note_time - start_time_offset
 
                     scaled_duration = note_model.duration * speed_multiplier
 
@@ -88,10 +90,13 @@ class SessionController:
             self.target.mode = "piece"
             self.target.active_piece = practice_piece
 
+            delay_buffer = countdownSeconds if countdownSeconds is not None else 0.0
+            synchronized_start = time.perf_counter() + delay_buffer
+
             # 4. Spin up the active session tracking state
             self._session = PracticeSession(
                 piece_id=piece_id,
-                start_time=time.perf_counter(),
+                start_time=synchronized_start,
                 start_bar=start_bar,
                 end_bar=end_bar,
             )

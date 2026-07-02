@@ -3,6 +3,7 @@ export type StartSessionRequest = {
   start_bar: number | null;
   end_bar: number | null;
   target_bpm: number;
+  countdownSeconds: number;
 };
 
 export type StartSessionOutput = {

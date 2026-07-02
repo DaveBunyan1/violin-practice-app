@@ -79,7 +79,7 @@ export default function PracticePage() {
     }
 
     setElapsedTime((prevElapsed) => {
-      const nextElapsed = prevElapsed + realDeltaTimeSeconds * speedMultiplier;
+      const nextElapsed = prevElapsed + realDeltaTimeSeconds;
       const executionCeiling = baseDuration + 1.5;
 
       // Auto-trigger session completion when cursor crosses end bounds
@@ -141,7 +141,8 @@ export default function PracticePage() {
     isEndingRef.current = false;
     setShowResults(false);
     setSessionReport(null);
-    await start(selectedPiece.id);
+
+    await start(selectedPiece.id, config.countdown ?? 0);
   };
 
   const handleEndSession = async () => {

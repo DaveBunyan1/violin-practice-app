@@ -65,8 +65,8 @@ export default function RowContainer({
         backgroundColor: "#16161a",
         border: "1px solid #232329",
         borderRadius: "10px",
-        padding: "16px",
-        margin: "0 auto 24px auto",
+        padding: "12px",
+        margin: "0 auto 6px auto",
         boxSizing: "border-box",
       }}
     >

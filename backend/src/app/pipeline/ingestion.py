@@ -69,6 +69,9 @@ class AudioIngestionStream:
             note = freq_to_note(freq)
             cents_error = calculate_pitch_error(freq)
 
+        if note != "REST" and freq < 190.0 or freq > 3000.0:
+            return
+
         # 5. Thread-safe dispatch out of the high-priority callback context
         event: PitchObservationEvent = {
             "frequency": freq,

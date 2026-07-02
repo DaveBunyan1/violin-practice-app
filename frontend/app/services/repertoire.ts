@@ -1,6 +1,6 @@
 import { api } from "../lib/api";
 import { CreatePieceInput } from "../types/CreatePiece";
-import { Piece } from "../types/Piece";
+import { Piece, PieceNote } from "../types/Piece";
 
 // READ
 export async function getRepertoire(): Promise<Piece[]> {
@@ -34,3 +34,10 @@ export async function deletePiece(id: number): Promise<void> {
 export async function setActivePiece(id: number): Promise<void> {
   return api.post<void>(`/repertoire/${id}/activate`);
 }
+
+export const updatePieceNotes = async (
+  id: number,
+  notes: PieceNote[],
+): Promise<Piece> => {
+  return api.patch<Piece>(`/repertoire/${id}`, { notes: notes });
+};
