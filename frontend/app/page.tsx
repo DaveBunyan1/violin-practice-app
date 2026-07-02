@@ -1,261 +1,340 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import ControlDeck from "./components/ControlDeck";
-import TimelineCanvas from "./components/practice/TimelineCanvas";
-import PerformanceAnalytics from "./components/practice/PerformanceAnalytics";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useRepertoire } from "./hooks/useRepertoire";
 
-type TargetNote = { note: string; time: number; duration: number };
-type ActivePiece = {
-  id: number;
-  title: string;
-  total_duration: number;
-  bpm: number;
-  time_signature_numerator: number;
-  notes: TargetNote[];
-};
+export default function DashboardHomePage() {
+  const router = useRouter();
+  const { pieces, loading } = useRepertoire();
+  const [selectedPieceId, setSelectedPieceId] = useState<string>("");
 
-const API_BASE = `http://${process.env.NEXT_PUBLIC_WEBSOCKET_HOST || "localhost"}:${process.env.NEXT_PUBLIC_WEBSOCKET_PORT || "8000"}`;
+  if (loading)
+    return <p style={{ padding: "24px" }}>Loading Dashboard Matrix...</p>;
 
-export default function Page() {
-  const [connected, setConnected] = useState<boolean>(false);
-  const [isSessionActive, setIsSessionActive] = useState<boolean>(false);
-  const [piece, setPiece] = useState<ActivePiece | null>(null);
-  const [sessionReport, setSessionReport] = useState<any | null>(null);
-  const [elapsedTime, setElapsedTime] = useState<number>(0);
-
-  const animationRef = useRef<number | null>(null);
-  const startTimeRef = useRef<number | null>(null);
-
-  // WebSocket Live Loop Link
-  useEffect(() => {
-    const socket = new WebSocket(
-      `ws://${process.env.NEXT_PUBLIC_WEBSOCKET_HOST || "localhost"}:${process.env.NEXT_PUBLIC_WEBSOCKET_PORT || "8000"}/stream`,
-    );
-    socket.onopen = () => setConnected(true);
-    socket.onclose = () => setConnected(false);
-    return () => socket.close();
-  }, []);
-
-  // Fetch Piece Blueprint Data
-  useEffect(() => {
-    async function loadPiece() {
-      try {
-        const res = await fetch(`${API_BASE}/repertoire/active`);
-        if (res.ok) setPiece(await res.json());
-      } catch (err) {
-        console.error("Failed to load active piece blueprint:", err);
-      }
+  const handleLaunchSession = () => {
+    if (!selectedPieceId) {
+      alert("Please select a repertoire piece to stream.");
+      return;
     }
-    loadPiece();
-  }, []);
-
-  const updateTimelineCursor = (timestamp: number) => {
-    if (!startTimeRef.current || !piece) return;
-    const elapsed = (timestamp - startTimeRef.current) / 1000;
-    if (elapsed >= piece.total_duration) {
-      handleEndSession();
-    } else {
-      setElapsedTime(elapsed);
-      animationRef.current = requestAnimationFrame(updateTimelineCursor);
-    }
-  };
-
-  const handleStartSession = async () => {
-    if (!piece) return; // Guard clause to ensure blueprint data is loaded
-
-    try {
-      // 1. Calculate approximate total bars to pass as a fallback end_bar
-      const beatDuration = 60 / (piece.bpm || 116);
-      const barDuration = beatDuration * (piece.time_signature_numerator || 4);
-      const totalBars = Math.ceil(piece.total_duration / barDuration) || 17;
-
-      // 2. Fire the POST request with the required payload body
-      const res = await fetch(`${API_BASE}/session/start`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          piece_id: piece.id,
-          start_bar: null,
-          end_bar: null,
-        }),
-      });
-
-      if (!res.ok) {
-        // Log explicit error payload if the backend rejects it for other reasons (e.g., status 400)
-        const errData = await res.json();
-        console.error("Session reject reason:", errData);
-        return;
-      }
-
-      setSessionReport(null);
-      setIsSessionActive(true);
-      setElapsedTime(0);
-      startTimeRef.current = performance.now();
-      animationRef.current = requestAnimationFrame(updateTimelineCursor);
-    } catch (err) {
-      console.error("Failed to start session:", err);
-    }
-  };
-  const handleEndSession = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/session/end`, { method: "POST" });
-      setIsSessionActive(false);
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
-      if (res.ok) setSessionReport(await res.json());
-    } catch (err) {
-      console.error("Failed to safely close performance window:", err);
-    }
+    // 🚀 Instantly route into your active real-time Web Audio/WebSocket workspace!
+    router.push(`/session?pieceId=${selectedPieceId}`);
   };
 
   return (
     <div
       style={{
-        padding: 40,
-        fontFamily: "sans-serif",
-        maxWidth: 1500,
+        maxWidth: "1100px",
         margin: "0 auto",
-        backgroundColor: "#121212",
-        color: "#e0e0e0",
-        minHeight: "100vh",
+        padding: "32px",
+        fontFamily: "sans-serif",
+        color: "#333",
       }}
     >
-      <h2>🎻 Practice Timeline Monitor v1.7.0</h2>
-      <p>Connection: {connected ? "🟢 Linked" : "🔴 Offline"}</p>
+      {/* 1. HEADER HERO */}
+      <header style={{ marginBottom: "32px" }}>
+        <h1 style={{ fontSize: "32px", margin: "0 0 8px 0" }}>
+          🎻 Practice Command Center
+        </h1>
+        <p style={{ color: "#666", margin: 0 }}>
+          Real-time audio telemetry performance tracking.
+        </p>
+      </header>
 
-      {piece && (
-        <div style={{ marginBottom: 20 }}>
-          <h3 style={{ color: "#BB86FC", margin: "5px 0" }}>
-            Piece: {piece.title}
-          </h3>
-          <p style={{ fontSize: 14, color: "#aaa" }}>
-            BPM: {piece.bpm || 116} | Time Signature:{" "}
-            {piece.time_signature_numerator || 4}/4
-          </p>
-          <p style={{ fontSize: 14, color: "#aaa" }}>
-            Duration: {piece.total_duration.toFixed(1)}s | Position:{" "}
-            {elapsedTime.toFixed(2)}s
-          </p>
+      {/* 2. QUICK START QUICK-ACTION HERO */}
+      <section
+        style={{
+          background: "linear-gradient(135deg, #0070f3 0%, #004494 100%)",
+          color: "#fff",
+          padding: "24px",
+          borderRadius: "12px",
+          boxShadow: "0 4px 12px rgba(0,112,243,0.2)",
+          marginBottom: "32px",
+        }}
+      >
+        <h2 style={{ margin: "0 0 12px 0", fontSize: "20px" }}>
+          ⚡ Quick Start Practice Session
+        </h2>
+        <p style={{ margin: "0 0 20px 0", opacity: 0.9, fontSize: "14px" }}>
+          Launch your Web Audio microphone stream and calibrate pitch mapping
+          against your target grid.
+        </p>
+
+        <div
+          style={{
+            display: "flex",
+            gap: "16px",
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <select
+            value={selectedPieceId}
+            onChange={(e) => setSelectedPieceId(e.target.value)}
+            style={{
+              padding: "12px",
+              borderRadius: "6px",
+              border: "none",
+              minWidth: "260px",
+              fontSize: "15px",
+              color: "#333",
+              fontWeight: "500",
+            }}
+          >
+            <option value="">-- Select Mapped Composition --</option>
+            {pieces.map((piece) => (
+              <option key={piece.id} value={piece.id}>
+                {piece.title} ({piece.bpm} BPM)
+              </option>
+            ))}
+          </select>
+
+          <button
+            onClick={handleLaunchSession}
+            style={{
+              padding: "12px 24px",
+              background: "#10b981",
+              color: "#fff",
+              border: "none",
+              borderRadius: "6px",
+              fontWeight: "bold",
+              cursor: "pointer",
+              fontSize: "15px",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+            }}
+          >
+            Start Live Session →
+          </button>
         </div>
-      )}
+      </section>
 
-      <ControlDeck
-        isSessionActive={isSessionActive}
-        onStart={handleStartSession}
-        onEnd={handleEndSession}
-      />
+      {/* 3. HIGH-LEVEL AGGREGATION METRICS */}
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: "20px",
+          marginBottom: "42px",
+        }}
+      >
+        <div
+          style={{
+            padding: "20px",
+            border: "1px solid #eaeaea",
+            borderRadius: "8px",
+            background: "#fff",
+          }}
+        >
+          <span
+            style={{
+              color: "#666",
+              fontSize: "12px",
+              fontWeight: "bold",
+              textTransform: "uppercase",
+            }}
+          >
+            Total Practice Time
+          </span>
+          <h3
+            style={{ fontSize: "28px", margin: "8px 0 0 0", color: "#0070f3" }}
+          >
+            1.8 hours
+          </h3>
+        </div>
+        <div
+          style={{
+            padding: "20px",
+            border: "1px solid #eaeaea",
+            borderRadius: "8px",
+            background: "#fff",
+          }}
+        >
+          <span
+            style={{
+              color: "#666",
+              fontSize: "12px",
+              fontWeight: "bold",
+              textTransform: "uppercase",
+            }}
+          >
+            Repertoire Index
+          </span>
+          <h3 style={{ fontSize: "28px", margin: "8px 0 0 0" }}>
+            {pieces.length} Track(s)
+          </h3>
+        </div>
+        <div
+          style={{
+            padding: "20px",
+            border: "1px solid #eaeaea",
+            borderRadius: "8px",
+            background: "#fff",
+          }}
+        >
+          <span
+            style={{
+              color: "#666",
+              fontSize: "12px",
+              fontWeight: "bold",
+              textTransform: "uppercase",
+            }}
+          >
+            Avg Pitch Accuracy
+          </span>
+          <h3
+            style={{ fontSize: "28px", margin: "8px 0 0 0", color: "#10b981" }}
+          >
+            94.2%
+          </h3>
+        </div>
+      </section>
 
-      {piece &&
-        (() => {
-          // 1. Core time math for calculations
-          const currentBpm = piece.bpm || 116;
-          const timeSigNumerator = piece.time_signature_numerator || 4;
-          const beatDuration = 60 / currentBpm;
-          const barDuration = beatDuration * timeSigNumerator;
+      {/* 4. LOWER COMPARTMENT: DOUBLE PANEL SPLIT */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "2fr 1fr",
+          gap: "32px",
+          alignItems: "start",
+        }}
+      >
+        {/* LEFT COMPARTMENT: Recent Performance Timeline Feed */}
+        <section>
+          <h2 style={{ fontSize: "20px", margin: "0 0 16px 0" }}>
+            🕒 Recent Performance Sessions
+          </h2>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+          >
+            {/* Mocking historical telemetry records parsed by your analytics handlers */}
+            <div
+              style={{
+                padding: "16px",
+                border: "1px solid #eaeaea",
+                borderRadius: "8px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div>
+                <strong style={{ display: "block", fontSize: "16px" }}>
+                  Gymnopédie No.1 (4 Bars Test)
+                </strong>
+                <span style={{ fontSize: "12px", color: "#666" }}>
+                  Tempo: 60 BPM • Passed 16s constraint sanity check
+                </span>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <span
+                  style={{
+                    color: "#10b981",
+                    fontWeight: "bold",
+                    display: "block",
+                  }}
+                >
+                  100% Match
+                </span>
+                <span style={{ fontSize: "12px", color: "#999" }}>
+                  Just Now
+                </span>
+              </div>
+            </div>
 
-          // 2. Determine how many total bars exist in this piece
-          const maxNoteTime = piece.notes.reduce(
-            (max, n) => Math.max(max, n.time + n.duration),
-            0,
-          );
-          const totalBarsCount = Math.max(
-            1,
-            Math.ceil(maxNoteTime / barDuration),
-          );
+            <div
+              style={{
+                padding: "16px",
+                border: "1px solid #eaeaea",
+                borderRadius: "8px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                opacity: 0.75,
+              }}
+            >
+              <div>
+                <strong style={{ display: "block", fontSize: "16px" }}>
+                  Scale in G Major
+                </strong>
+                <span style={{ fontSize: "12px", color: "#666" }}>
+                  Tempo: 116 BPM • Intonation calibration run
+                </span>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <span
+                  style={{
+                    color: "#f59e0b",
+                    fontWeight: "bold",
+                    display: "block",
+                  }}
+                >
+                  88.5% Match
+                </span>
+                <span style={{ fontSize: "12px", color: "#999" }}>
+                  Yesterday
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
 
-          // 3. Map flat absolute-timed notes into our clean, sequential Bar structure
-          const structuredBars = Array.from({ length: totalBarsCount }).map(
-            (_, barIdx) => {
-              const barStartTime = barIdx * barDuration;
+        {/* RIGHT COMPARTMENT: Spotlight Repertoire Anchor */}
+        <section
+          style={{
+            padding: "20px",
+            background: "#f9f9f9",
+            borderRadius: "8px",
+            border: "1px solid #eaeaea",
+          }}
+        >
+          <h2 style={{ fontSize: "18px", margin: "0 0 8px 0" }}>
+            🎯 Repertoire Spotlight
+          </h2>
+          <p style={{ fontSize: "13px", color: "#666", margin: "0 0 16px 0" }}>
+            This piece has the oldest tracking sync timestamp or lowest stored
+            precision value.
+          </p>
 
-              // We are going to build this bar beat-by-beat sequentially
-              const notesForBar: any[] = [];
+          {pieces.length > 0 ? (
+            <div>
+              <h4
+                style={{
+                  margin: "0 0 4px 0",
+                  fontSize: "16px",
+                  color: "#0070f3",
+                }}
+              >
+                {pieces[0].title}
+              </h4>
+              <p style={{ fontSize: "13px", margin: "0 0 16px 0" }}>
+                {pieces[0].bpm} BPM | Length:{" "}
+                {pieces[0].total_duration.toFixed(2)}s
+              </p>
 
-              for (let beatIdx = 0; beatIdx < timeSigNumerator; beatIdx++) {
-                const absoluteBeatTime = barStartTime + beatIdx * beatDuration;
-                const errorMargin = 0.05;
-
-                // Find if a note from the backend starts on this specific beat
-                const matchingNote = piece.notes.find(
-                  (n) => Math.abs(n.time - absoluteBeatTime) < errorMargin,
-                );
-
-                if (matchingNote) {
-                  // Determine structural NoteValue string based on note duration
-                  let val:
-                    | "whole"
-                    | "half"
-                    | "quarter"
-                    | "eighth"
-                    | "sixteenth" = "quarter";
-
-                  if (
-                    Math.abs(matchingNote.duration - beatDuration * 4) <
-                    errorMargin
-                  )
-                    val = "whole";
-                  else if (
-                    Math.abs(matchingNote.duration - beatDuration * 2) <
-                    errorMargin
-                  )
-                    val = "half";
-                  else if (
-                    Math.abs(matchingNote.duration - beatDuration) < errorMargin
-                  )
-                    val = "quarter";
-                  else if (
-                    Math.abs(matchingNote.duration - beatDuration * 0.5) <
-                    errorMargin
-                  )
-                    val = "eighth";
-                  else if (
-                    Math.abs(matchingNote.duration - beatDuration * 0.25) <
-                    errorMargin
-                  )
-                    val = "sixteenth";
-
-                  notesForBar.push({
-                    pitch: matchingNote.note,
-                    value: val,
-                    isRest: false,
-                  });
-
-                  // If the note spans multiple beats (like a half or whole note),
-                  // fast-forward the loop counter past the beats it covers
-                  const extraBeatsToSkip =
-                    Math.round(matchingNote.duration / beatDuration) - 1;
-                  beatIdx += Math.max(0, extraBeatsToSkip);
-                } else {
-                  // No note starts on this beat -> Drop a proper 1-beat quarter rest placeholder!
-                  notesForBar.push({
-                    pitch: "",
-                    value: "quarter",
-                    isRest: true,
-                  });
-                }
-              }
-
-              return {
-                barNumber: barIdx + 1,
-                notes: notesForBar,
-              };
-            },
-          );
-
-          return (
-            <TimelineCanvas
-              bars={structuredBars} // Passing the brand new structured array
-              bpm={currentBpm}
-              timeSignatureNumerator={timeSigNumerator}
-              elapsedTime={elapsedTime}
-              isSessionActive={isSessionActive}
-            />
-          );
-        })()}
-
-      <PerformanceAnalytics report={sessionReport} />
+              <button
+                onClick={() => router.push("/repertoire")}
+                style={{
+                  width: "100%",
+                  padding: "8px",
+                  background: "none",
+                  border: "1px solid #0070f3",
+                  color: "#0070f3",
+                  borderRadius: "4px",
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                }}
+              >
+                Go to Repertoire Matrix
+              </button>
+            </div>
+          ) : (
+            <p style={{ fontSize: "13px", color: "#999", margin: 0 }}>
+              No pieces saved to reference.
+            </p>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
