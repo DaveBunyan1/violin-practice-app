@@ -2,11 +2,11 @@ import queue
 
 from app.models.events import PitchObservationEvent
 from app.core.logging import logger
-from app.core.shared_engines import segmenter
+from app.pipeline.note_segmenter import NoteSegmenter
 
 
 def run_segmentation_pipeline(
-    inbound_raw_queue: queue.Queue[PitchObservationEvent],
+    inbound_raw_queue: queue.Queue[PitchObservationEvent], segmenter: NoteSegmenter
 ) -> None:
     """Worker Loop Thread: Pulls raw observations and passes them to the segmenter."""
     logger.info("Segmentation background thread worker started.")

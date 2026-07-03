@@ -22,6 +22,7 @@ class PitchObservationEvent(TypedDict):
     note: str
     timestamp: float  # perf_counter absolute time
     pitch_cents_error: Optional[float]
+    pipeline_start: float
 
 
 # 2. Segmented Data Layer
@@ -38,6 +39,9 @@ class PerformedNoteEvent(TypedDict):
     end_time: float
 
     duration: float  # derived (end_time - start_time)
+
+    retry_count: int
+    pipeline_start: float
 
 
 # 3. Session event

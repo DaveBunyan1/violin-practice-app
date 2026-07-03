@@ -1,12 +1,14 @@
 import time
 import threading
-from typing import Optional
+from typing import List, Optional
 from sqlalchemy.orm import Session
 
+from app.database.models import RepertoireNote
 from app.pipeline.practice_session import PracticeSession
 from app.pipeline.practice_target import ExpectedNote, PracticePiece, PracticeTarget
 from app.pipeline.note_segmenter import NoteSegmenter
 from app.services.repertoire_service import get_piece_by_id
+from app.core.logging import logger
 
 
 class SessionController:
@@ -20,7 +22,6 @@ class SessionController:
 
         # Guard session state changes across WebSocket and processing threads
         self._lock = threading.RLock()
-
         self._session: Optional[PracticeSession] = None
         self._active: bool = False
 
@@ -33,67 +34,48 @@ class SessionController:
         target_bpm: Optional[int] = None,
         countdownSeconds: Optional[float] = 0.0,
     ) -> None:
-        """Starts a fresh practice session. Threads calling get_session will block momentarily during initialization."""
-        with self._lock:
-            db_piece = get_piece_by_id(db, piece_id)
-
-            if not db_piece:
-                raise ValueError(f"Repertoire piece with ID {piece_id} not found.")
-
-            original_bpm = (
-                db_piece.bpm if db_piece.bpm else 116
-            )  # 116 hardcoded is an issue
-            effective_bpm = target_bpm if target_bpm else original_bpm
-
-            speed_multiplier = original_bpm / effective_bpm
-
-            seconds_per_beat = 60.0 / effective_bpm
-            seconds_per_bar = seconds_per_beat * db_piece.time_signature_numerator
-
-            start_time_offset = 0.0
-            if start_bar and start_bar > 1:
-                start_time_offset = (start_bar - 1) * seconds_per_bar
-
-            end_time_offset = db_piece.total_duration
-            if end_bar:
-                end_time_offset = end_bar * seconds_per_bar
-
-            # 2. Filter and shift the notes for the pipeline
-            expected_notes = []
-            for note_model in db_piece.notes:
-                # Only include notes that fall within the selected bar time window
-                scaled_note_time = note_model.time * speed_multiplier
-
-                if start_time_offset <= scaled_note_time <= end_time_offset:
-
-                    # CRITICAL: Shift the target time back to 0.0 so the
-                    # countdown/timer aligns perfectly with when they start playing!
-                    adjusted_time = scaled_note_time - start_time_offset
-
-                    scaled_duration = note_model.duration * speed_multiplier
-
-                    expected_notes.append(
-                        ExpectedNote(
-                            note=note_model.note,
-                            time=adjusted_time,
-                            duration=scaled_duration,
-                        )
-                    )
-
-            # 3. Feed the isolated loop segment to the pipeline target
-            practice_piece = PracticePiece(
-                title=f"{db_piece.title} (Bars {start_bar or 1}-{end_bar or 'End'})",
-                total_duration=end_time_offset - start_time_offset,
-                notes=expected_notes,
+        """Starts a fresh practice session."""
+        db_piece = get_piece_by_id(db, piece_id)
+        if not db_piece:
+            logger.error(
+                "session_start_failed_piece_not_found",
+                extra={"extra_context": {"piece_id": piece_id}},
             )
+            raise ValueError(f"Repertoire piece with ID {piece_id} not found.")
 
+        # 1. Compute time domains based on configuration layout
+        original_bpm = db_piece.bpm if db_piece.bpm else 116
+        effective_bpm = target_bpm if target_bpm else original_bpm
+        speed_multiplier = original_bpm / effective_bpm
+
+        seconds_per_beat = 60.0 / effective_bpm
+        seconds_per_bar = seconds_per_beat * db_piece.time_signature_numerator
+
+        start_time_offset = (
+            (start_bar - 1) * seconds_per_bar if start_bar and start_bar > 1 else 0.0
+        )
+        end_time_offset = (
+            end_bar * seconds_per_bar if end_bar else db_piece.total_duration
+        )
+
+        # 2. Filter and normalize structural notes window
+        expected_notes = self._prepare_expected_notes(
+            db_piece.notes, speed_multiplier, start_time_offset, end_time_offset
+        )
+
+        practice_piece = PracticePiece(
+            title=f"{db_piece.title} (Bars {start_bar or 1}-{end_bar or 'End'})",
+            total_duration=end_time_offset - start_time_offset,
+            notes=expected_notes,
+        )
+
+        # 3. Synchronize clock bounds and mutate thread-safe state properties
+        delay_buffer = countdownSeconds if countdownSeconds is not None else 0.0
+        synchronized_start = time.perf_counter() + delay_buffer
+        with self._lock:
             self.target.mode = "piece"
             self.target.active_piece = practice_piece
 
-            delay_buffer = countdownSeconds if countdownSeconds is not None else 0.0
-            synchronized_start = time.perf_counter() + delay_buffer
-
-            # 4. Spin up the active session tracking state
             self._session = PracticeSession(
                 piece_id=piece_id,
                 start_time=synchronized_start,
@@ -103,13 +85,55 @@ class SessionController:
             self._segmenter.reset()
             self._active = True
 
+            logger.info(
+                "session_started",
+                extra={
+                    "extra_context": {
+                        "piece_id": piece_id,
+                        "effective_bpm": effective_bpm,
+                        "speed_multiplier": speed_multiplier,
+                        "start_time_offset": start_time_offset,
+                        "synchronized_start": synchronized_start,
+                    }
+                },
+            )
+
+    def _prepare_expected_notes(
+        self,
+        notes: List[RepertoireNote],
+        speed_multiplier: float,
+        start_offset: float,
+        end_offset: float,
+    ) -> List[ExpectedNote]:
+        """Filters out bounds targets and rescales raw time positions to starting edge 0.0."""
+        expected_notes = []
+        for note_model in notes:
+            scaled_note_time = note_model.time * speed_multiplier
+
+            if start_offset <= scaled_note_time <= end_offset:
+                expected_notes.append(
+                    ExpectedNote(
+                        note=note_model.note,
+                        time=scaled_note_time - start_offset,
+                        duration=note_model.duration * speed_multiplier,
+                    )
+                )
+        return expected_notes
+
     def end_session(self) -> PracticeSession:
         with self._lock:
             if self._session is None:
+                logger.warning("session_end_rejected_no_active_session")
                 raise RuntimeError("No session to end")
 
             self._active = False
-            return self._session
+            session_context = self._session
+
+            logger.info(
+                "session_ended",
+                extra={"extra_context": {"piece_id": session_context.piece_id}},
+            )
+            return session_context
 
     def reset_session(
         self,
@@ -119,6 +143,10 @@ class SessionController:
         end_bar: Optional[int] = None,
     ) -> None:
         """Hard reset = restart everything cleanly."""
+        logger.info(
+            "session_reset_triggered",
+            extra={"extra_context": {"piece_id": piece_id, "start_bar": start_bar}},
+        )
         self.start_session(db, piece_id, start_bar, end_bar)
 
     def get_session(self) -> PracticeSession:

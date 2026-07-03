@@ -8,6 +8,7 @@ import sounddevice as sd  # type: ignore
 from app.pitch.autocorrelation import estimate_frequency
 from app.pitch.notes import calculate_pitch_error, freq_to_note
 from app.models.events import PitchObservationEvent
+from app.core.logging import logger
 
 # Domain-specific default configuration parameters
 SAMPLE_RATE = 44100
@@ -33,8 +34,6 @@ class AudioIngestionStream:
         self.sample_rate = sample_rate
         self.ambient_noise_threshold = ambient_noise_threshold
         self._stream: Optional[sd.InputStream] = None
-        self._silence_start: float | None = None
-        self._is_silent: bool = False
         self.silence_debounce_time = 0.08  # 80ms
         self.clock = clock
         self._running: bool = False
@@ -81,6 +80,7 @@ class AudioIngestionStream:
             "note": note,
             "timestamp": current_timestamp,
             "pitch_cents_error": cents_error,
+            "pipeline_start": time.perf_counter(),
         }
         self.inbound_queue.put(event)
 
@@ -91,32 +91,27 @@ class AudioIngestionStream:
                 return  # Prevent spinning up duplicate streams concurrently
             self._running = True
 
-            self._stream = sd.InputStream(
-                samplerate=self.sample_rate,
-                blocksize=BUFFER_SIZE,
-                channels=CHANNELS,
-                callback=self._audio_callback,
-            )
-
             try:
-                with self._stream:
-                    print("Audio stream context initialized successfully...")
-
-                    while self._running:
-                        try:
-                            if not self._stream.active:
-                                break
-                        except (sd.PortAudioError, AttributeError):
-                            # Catch context deletions triggered by concurrent test runner tear-downs
-                            break
-                        sd.sleep(100)
+                self._stream = sd.InputStream(
+                    samplerate=self.sample_rate,
+                    blocksize=BUFFER_SIZE,
+                    channels=CHANNELS,
+                    callback=self._audio_callback,
+                )
+                self._stream.start()
+                logger.info(
+                    "Audio stream context initialized and started successfully."
+                )
             except Exception as e:
-                print(f"Audio ingestion stream exception: {e}")
-            finally:
-                self.stop()
+                logger.error(
+                    f"Failed to start audio ingestion stream: {e}", exc_info=True
+                )
+                self._running = False
+                self._stream = None
+                raise
 
     def stop(self) -> None:
-        """Tears down the hardware stream layer."""
+        """Tears down the hardware stream layer gracefully."""
         with self._lock:
             if not self._running:
                 return
@@ -126,8 +121,13 @@ class AudioIngestionStream:
             try:
                 if self._stream.active:
                     self._stream.stop()
+            except (sd.PortAudioError, AttributeError) as e:
+                logger.warning(f"Ignored expected stream shutdown exception: {e}")
+
+            try:
                 self._stream.close()
-            except (sd.PortAudioError, AttributeError):
-                pass  # The stream pointer was already cleared or closed by the host environment
+                logger.info("Audio ingestion stream torn down successfully.")
+            except (sd.PortAudioError, AttributeError) as e:
+                logger.warning(f"Ignored expected stream close exception: {e}")
             finally:
                 self._stream = None

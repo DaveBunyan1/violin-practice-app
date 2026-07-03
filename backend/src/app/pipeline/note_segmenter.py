@@ -1,33 +1,38 @@
 from typing import List, Optional, Callable
+
 from app.models.events import PitchObservationEvent, PerformedNoteEvent
+from app.core.logging import logger
 
 
 class NoteSegmenter:
     """
-    Converts raw pitch observations into stable performed notes
-    using a 2-state confirmation model:
+    Deterministic FSM-based note segmenter.
 
-    - committed note (current stable note)
-    - candidate note (potential transition)
+    States:
+    - IDLE: no active note
+    - HOLDING: stable committed note
+    - CANDIDATE: potential transition note
     """
 
     def __init__(self, stability_threshold: float = 0.1):
         self.stability_threshold = stability_threshold
-
-        # committed state
-        self._current_note: Optional[str] = None
-        self._current_frequency: Optional[float] = None
-        self._note_start_time: Optional[float] = None
-        self._current_cents_errors: List[float] = []
-
-        # candidate state
-        self._candidate_note: Optional[str] = None
-        self._candidate_frequency: Optional[float] = None
-        self._candidate_start_time: Optional[float] = None
-        self._candidate_cents_errors: List[float] = []
-
         self._callback: Optional[Callable[[PerformedNoteEvent], None]] = None
 
+        # committed state
+        self._note: Optional[str] = None
+        self._frequency: Optional[float] = None
+        self._start_time: Optional[float] = None
+        self._cents: List[float] = []
+
+        # candidate state
+        self._cand_note: Optional[str] = None
+        self._cand_freq: Optional[float] = None
+        self._cand_start: Optional[float] = None
+        self._cand_cents: List[float] = []
+
+    # -------------------------------------------------
+    # API
+    # -------------------------------------------------
     def set_callback(self, callback: Callable[[PerformedNoteEvent], None]) -> None:
         self._callback = callback
 
@@ -38,125 +43,158 @@ class NoteSegmenter:
         note = event["note"]
         freq = event["frequency"]
         timestamp = event["timestamp"]
-        cents_error = event.get("pitch_cents_error")
+        cents = event.get("pitch_cents_error")
 
-        # first note ever
-        if self._current_note is None:
-            self._start_new_note(note, freq, timestamp, cents_error)
+        # -------------------------
+        # 1. REST = HARD BOUNDARY
+        # -------------------------
+        if note == "REST":
+            flushed_note = self._note
+            self.flush(timestamp)
+
+            logger.info(
+                "rest_flush",
+                extra={
+                    "extra_context": {
+                        "timestamp": timestamp,
+                        "flushed_note": flushed_note,
+                    }
+                },
+            )
             return
 
-        # stable continuation → cancel candidate
-        if note == self._current_note:
-            if cents_error is not None:
-                self._current_cents_errors.append(cents_error)
-            self._clear_candidate()
+        # -------------------------
+        # 2. First note ever
+        # -------------------------
+        if self._note is None:
+            self._start(note, freq, timestamp, cents)
             return
 
-        # start or continue candidate
-        if self._candidate_note != note:
-            self._start_candidate(note, freq, timestamp, cents_error)
-        else:
-            # Continue accumulating frames into the candidate window
-            if cents_error is not None:
-                self._candidate_cents_errors.append(cents_error)
+        # -------------------------
+        # 3. Stable continuation
+        # -------------------------
+        if note == self._note:
+            if cents is not None:
+                self._cents.append(cents)
 
-        # guard
-        if self._candidate_start_time is None:
+            self._cand_reset()
             return
 
-        # confirm stability
-        if timestamp - self._candidate_start_time >= self.stability_threshold:
+        # -------------------------
+        # 4. Candidate logic
+        # -------------------------
+        self._handle_candidate(note, freq, timestamp, cents)
+
+    # -------------------------------------------------
+    # Candidate handling
+    # -------------------------------------------------
+    def _handle_candidate(
+        self, note: str, freq: float, timestamp: float, cents: Optional[float]
+    ) -> None:
+        # new candidate
+        if self._cand_note != note:
+            self._cand_note = note
+            self._cand_freq = freq
+            self._cand_start = timestamp
+            self._cand_cents = []
+            if cents is not None:
+                self._cand_cents.append(cents)
+            return
+
+        # continue candidate accumulation
+        if cents is not None:
+            self._cand_cents.append(cents)
+
+        # stability check
+        if self._cand_start is None:
+            return
+
+        if timestamp - self._cand_start >= self.stability_threshold:
             self._commit_candidate(timestamp)
 
     # -------------------------------------------------
     # State transitions
     # -------------------------------------------------
-    def _start_new_note(
-        self, note: str, freq: float, timestamp: float, cents_error: Optional[float]
+    def _start(
+        self, note: str, freq: float, timestamp: float, cents: Optional[float]
     ) -> None:
-        self._current_note = note
-        self._current_frequency = freq
-        self._note_start_time = timestamp
-        self._current_cents_errors = [cents_error] if cents_error is not None else []
+        self._note = note
+        self._frequency = freq
+        self._start_time = timestamp
+        self._cents = []
 
-    def _start_candidate(
-        self, note: str, freq: float, timestamp: float, cents_error: Optional[float]
-    ) -> None:
-        self._candidate_note = note
-        self._candidate_frequency = freq
-        self._candidate_start_time = timestamp
-        self._candidate_cents_errors = [cents_error] if cents_error is not None else []
+        if cents is not None:
+            self._cents.append(cents)
 
-    def _clear_candidate(self) -> None:
-        self._candidate_note = None
-        self._candidate_frequency = None
-        self._candidate_start_time = None
-        self._candidate_cents_errors = []
+        logger.info(
+            "note_started", extra={"extra_context": {"note": note, "start": timestamp}}
+        )
 
     def _commit_candidate(self, timestamp: float) -> None:
-        """
-        Finalise current note and emit it, then switch to candidate.
-        """
+        self._emit(timestamp)
 
-        # emit previous note
-        self._emit_current_note(timestamp)
+        self._note = self._cand_note
+        self._frequency = self._cand_freq
+        self._start_time = self._cand_start
+        self._cents = list(self._cand_cents)
 
-        # promote candidate → current
-        self._current_note = self._candidate_note
-        self._current_frequency = self._candidate_frequency
-        self._note_start_time = self._candidate_start_time
-        self._current_cents_errors = self._candidate_cents_errors
+        logger.info(
+            "note_committed",
+            extra={
+                "extra_context": {
+                    "note": self._cand_note,
+                    "start": self._cand_start,
+                }
+            },
+        )
 
-        self._clear_candidate()
+        self._cand_reset()
+
+    def _cand_reset(self) -> None:
+        self._cand_note = None
+        self._cand_freq = None
+        self._cand_start = None
+        self._cand_cents = []
+
+    def reset(self) -> None:
+        self._note = None
+        self._frequency = None
+        self._start_time = None
+        self._cents = []
+        self._cand_reset()
 
     # -------------------------------------------------
     # Output
     # -------------------------------------------------
-    def _emit_current_note(self, end_timestamp: float) -> None:
+    def _emit(self, end_time: float) -> None:
         if self._callback is None:
             return
 
-        if (
-            self._current_note is None
-            or self._note_start_time is None
-            or self._current_frequency is None
-        ):
+        if self._note is None or self._start_time is None or self._frequency is None:
             return
 
-        if self._current_cents_errors:
-            avg_cents_error: Optional[float] = sum(self._current_cents_errors) / len(
-                self._current_cents_errors
-            )
-        else:
-            avg_cents_error = None
+        avg = None
+        if self._cents:
+            avg = sum(self._cents) / len(self._cents)
 
-        event: PerformedNoteEvent = {
-            "note": self._current_note,
-            "frequency": self._current_frequency,
-            "start_time": self._note_start_time,
-            "end_time": end_timestamp,
-            "duration": end_timestamp - self._note_start_time,
-            "avg_pitch_error_cents": avg_cents_error,
-        }
-
-        self._callback(event)
+        self._callback(
+            {
+                "note": self._note,
+                "frequency": self._frequency,
+                "start_time": self._start_time,
+                "end_time": end_time,
+                "duration": end_time - self._start_time,
+                "avg_pitch_error_cents": avg,
+                "retry_count": 0,
+            }
+        )
 
     # -------------------------------------------------
-    # Public utilities
+    # Flush
     # -------------------------------------------------
-    def reset(self) -> None:
-        self._current_note = None
-        self._current_frequency = None
-        self._note_start_time = None
-        self._current_cents_errors = []
-        self._clear_candidate()
-
     def flush(self, timestamp: float) -> None:
-        """
-        Force emit last note at end of stream.
-        """
-        if self._current_note is None:
+        if self._note is None:
             return
 
-        self._emit_current_note(timestamp)
+        self._emit(timestamp)
         self.reset()

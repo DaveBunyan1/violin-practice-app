@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
+import sounddevice as sd  # type: ignore
 
 from app.database.connection import Base, get_db
 from app.main import app
@@ -81,3 +82,14 @@ def audio_harness():
 
     # Return both so your tests can feed data via harness AND inspect output via stream.inbound_queue
     return harness, stream
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_sounddevice_after_tests():
+    """Guarantees low-level PortAudio C-threads are killed before process exit."""
+    yield
+    try:
+        # Force terminate any remaining stream allocations
+        sd._terminate()  # type: ignore
+    except Exception:
+        pass

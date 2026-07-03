@@ -1,3 +1,4 @@
+import queue
 import threading
 
 from contextlib import asynccontextmanager
@@ -7,26 +8,20 @@ from fastapi.middleware.cors import CORSMiddleware
 # Core application imports
 from app.pipeline.ingestion import AudioIngestionStream
 from app.core.shared_engines import (
-    segmenter,
     session_controller,
-    pitch_queue,
-    broadcast_queue,
-    segmented_queue,
 )
 from app.core.pipeline import run_segmentation_pipeline
 from app.models.events import (
     PerformedNoteEvent,
 )
-from app.core.logging import logger
 
 from app.models.router_models import HealthCheckReturn
-from app.pipeline.process_notes import process_notes
+from app.pipeline.note_segmenter import NoteSegmenter
+
 from app.api.v1.repertoire import router as repertoire_router
 from app.api.v1.session import router as session_router
 from app.api.v1.telemetry import router as telemetry_router
-
-# Database imports
-from app.database.connection import engine, Base
+from app.pipeline.note_processing_worker import NoteProcessingWorker
 
 
 # -----------------------------------------------------------------
@@ -39,47 +34,49 @@ async def lifespan(app: FastAPI):
     the background real-time processing topology threads.
     """
 
-    logger.info("Syncing relational database structural schemas...")
-    Base.metadata.create_all(bind=engine)
+    # ----------------------------
+    # queues (data channels)
+    # ----------------------------
+    pitch_queue = queue.Queue()
+    segmented_queue = queue.Queue()
+    broadcast_queue = queue.Queue()
+    retry_queue = queue.Queue()
+    dead_letter_queue = queue.Queue()
 
-    # Wire up Stage 2 (Segmentation) callback to queue
+    # ----------------------------
+    # core components
+    # ----------------------------
+    segmenter = NoteSegmenter(stability_threshold=0.1)
+
     def on_segmented(note: PerformedNoteEvent):
-        logger.info(
-            f"Segmenter committed note: {note['note']}",
-            extra={
-                "extra_context": {
-                    "duration": round(note["duration"], 2),
-                    "avg_pitch_error_cents": note.get("avg_pitch_error_cents"),
-                }
-            },
-        )
         segmented_queue.put(note)
 
     segmenter.set_callback(on_segmented)
 
-    # Instantiate Object-Oriented Audio Ingestion
     audio_streamer = AudioIngestionStream(inbound_queue=pitch_queue)
 
-    logger.info("Initializing system harness topology background threads.")
-
-    # Thread A: Microphone Input Ingestion
+    # ----------------------------
+    # threads (runtime topology)
+    # ----------------------------
     threading.Thread(target=audio_streamer.start, daemon=True).start()
 
-    # Thread B: Note Segmentation State Machine
     threading.Thread(
-        target=run_segmentation_pipeline, args=(pitch_queue,), daemon=True
-    ).start()
-
-    # Thread C: Sequence Alignment & Scoring Engine
-    threading.Thread(
-        target=process_notes,
-        args=(session_controller, segmented_queue, broadcast_queue),
+        target=run_segmentation_pipeline,
+        args=(pitch_queue, segmenter),
         daemon=True,
     ).start()
 
-    yield  # FastAPI Application Runs Here
+    worker = NoteProcessingWorker(
+        controller=session_controller,
+        inbound_queue=segmented_queue,
+        websocket_broadcast_queue=broadcast_queue,
+        retry_queue=retry_queue,
+        dead_letter_queue=dead_letter_queue,
+    )
 
-    logger.info("Shutting down background service threads.")
+    threading.Thread(target=worker.run, daemon=True).start()
+
+    yield
 
 
 # -----------------------------------------------------------------
