@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, cast
 
 from app.models.events import AlignedNote, ScoreResult
 
@@ -26,9 +26,6 @@ def score_alignment(aligned: List[AlignedNote]) -> ScoreResult:
         time_error = note["time_error"]
         cents_error = note.get("pitch_error_cents")
 
-        if time_error is None:
-            continue
-
         notes_hit += 1
 
         # ------------------------------------------------
@@ -52,12 +49,9 @@ def score_alignment(aligned: List[AlignedNote]) -> ScoreResult:
                 pitch_score += 1.0
 
         # Timing
+        time_error = cast(float, note["time_error"])
         abs_time_error = abs(time_error)
-
-        timing_score += max(
-            0.0,
-            1.0 - (abs_time_error / 0.4),
-        )
+        timing_score += max(0.0, 1.0 - (abs_time_error / 0.4))
 
     pitch_accuracy = pitch_score / total_notes
     timing_accuracy = timing_score / total_notes

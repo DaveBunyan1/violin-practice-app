@@ -1,3 +1,5 @@
+import queue
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -5,6 +7,8 @@ from sqlalchemy.orm import sessionmaker, Session
 
 from app.database.connection import Base, get_db
 from app.main import app
+from app.pipeline.ingestion import AudioIngestionStream
+from tests.utils.audio_harness import AudioStreamTestHarness
 
 TEST_DATABASE_URL = "sqlite:///./test.db"
 
@@ -66,3 +70,14 @@ def client(db_session: Session):
 
     # Clean up dependency overrides after the test finishes
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def audio_harness():
+    """Provides an isolated ingestion stream and a mock harness for feeding data."""
+    test_queue = queue.Queue()
+    stream = AudioIngestionStream(inbound_queue=test_queue)
+    harness = AudioStreamTestHarness(stream)
+
+    # Return both so your tests can feed data via harness AND inspect output via stream.inbound_queue
+    return harness, stream

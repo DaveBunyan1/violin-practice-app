@@ -35,7 +35,7 @@ class AudioStreamTestHarness:
             self.t = 1000.0 + dt
             self.stream._audio_callback(  # type: ignore
                 indata=audio,
-                frames=1024,
+                frames=len(audio),
                 status_time=None,
                 status=clean_status_flags,
             )
