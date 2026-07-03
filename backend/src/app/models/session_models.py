@@ -2,7 +2,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from app.models.events import ScoreResult
+from app.models.events import ScoreResult, SessionStoredNote
 
 
 class StartSessionPayload(BaseModel):
@@ -33,3 +33,20 @@ class HistoricalSessionOutput(BaseModel):
     timing_accuracy: float
     notes_hit: int
     notes_total: int
+
+
+class SessionDetailOutput(BaseModel):
+    id: int
+    start_time: str
+    end_time: str | None
+
+    piece_id: int
+
+    total_score: float
+    pitch_accuracy: float
+    timing_accuracy: float
+
+    notes_hit: int
+    notes_total: int
+
+    performed_notes: list[SessionStoredNote]

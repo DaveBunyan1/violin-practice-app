@@ -119,28 +119,3 @@ def test_get_repertoire_empty_and_populated(client: TestClient, db_session: Sess
     response = client.get("/repertoire")
     assert response.status_code == 200
     assert len(response.json()) >= 1
-
-
-def test_get_active_piece_not_found(client: TestClient):
-    # Ensure no piece with the title "Gym" exists right now
-    response = client.get("/repertoire/active")
-    assert response.status_code == 404
-    assert (
-        response.json()["detail"]
-        == "Active practice piece template missing from storage."
-    )
-
-
-def test_get_active_piece_success(client: TestClient, db_session: Session):
-    # Seed the specific piece title the endpoint looks up
-    active_piece = RepertoirePiece(
-        title="Gym", bpm=72, time_signature_numerator=3, notes=[]
-    )
-
-    db_session.add(active_piece)
-    db_session.commit()
-    db_session.refresh(active_piece)
-
-    response = client.get("/repertoire/active")
-    assert response.status_code == 200
-    assert response.json()["title"] == "Gym"

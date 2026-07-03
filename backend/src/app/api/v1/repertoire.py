@@ -59,7 +59,7 @@ def delete_repertoire_piece(piece_id: int, db: Session = Depends(get_db)):
 
         piece = get_piece_by_id(db, piece_id)
         if not piece:
-            # 🌟 Track malicious or broken frontend deletion links
+            # Track malicious or broken frontend deletion links
             logger.warning(
                 "piece_deletion_failed_not_found",
                 extra={"extra_context": {"piece_id": piece_id}},

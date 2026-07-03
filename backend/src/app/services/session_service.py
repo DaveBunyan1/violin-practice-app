@@ -3,14 +3,14 @@ from typing import List
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 from app.database import models
-from app.models.events import PerformedNoteEvent, ScoreResult
+from app.models.events import ScoreResult, SessionStoredNote
 
 
 def create_session_history_record(
     db: Session,
     piece_id: int,
     final_score: ScoreResult,
-    performed_notes_list: List[PerformedNoteEvent],
+    performed_notes_list: List[SessionStoredNote],
 ) -> models.SessionRecord:
     """
     Atomically writes a completed practice run summary and all individual
@@ -51,4 +51,13 @@ def get_historical_sessions(db: Session, limit: int = 10) -> list[models.Session
         .order_by(desc(models.SessionRecord.start_time))
         .limit(limit)
         .all()
+    )
+
+
+def get_session_by_id(db: Session, piece_id: int) -> models.SessionRecord | None:
+    """Queries the repository for a specific piece blueprint by its unique ID."""
+    return (
+        db.query(models.SessionRecord)
+        .filter(models.SessionRecord.id == piece_id)
+        .first()
     )

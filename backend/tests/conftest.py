@@ -1,4 +1,5 @@
 import queue
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -47,7 +48,9 @@ def db_session():
     yield session
 
     session.close()
-    transaction.rollback()
+
+    if transaction.is_active:
+        transaction.rollback()
     connection.close()
 
 
@@ -93,3 +96,10 @@ def cleanup_sounddevice_after_tests():
         sd._terminate()  # type: ignore
     except Exception:
         pass
+
+
+@pytest.fixture(autouse=True)
+def silence_telemetry_logs():
+    """Prevents live log formatting engines from colliding with Pytest stream capture."""
+    with patch("app.core.telemetry.logger.info") as mock_log:
+        yield mock_log
