@@ -75,7 +75,7 @@ class RepertoirePiece(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     title: Mapped[str] = mapped_column(String, nullable=False)
     total_duration: Mapped[float] = mapped_column(
-        Float, nullable=False
+        Float, nullable=False, default=0.0, server_default="0.0"
     )  # Total length of the piece in seconds
     image_path: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 

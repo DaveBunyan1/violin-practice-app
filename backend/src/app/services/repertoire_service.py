@@ -70,8 +70,9 @@ def update_piece(db: Session, piece_id: int, payload: PiecePatch):
 
         # recompute duration
         if payload.notes:
-
             piece.total_duration = max(n.time + n.duration for n in payload.notes)
+        else:
+            piece.total_duration = 0.0
 
     db.commit()
     db.refresh(piece)

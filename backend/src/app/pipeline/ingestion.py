@@ -1,4 +1,5 @@
 import queue
+import threading
 import time
 from typing import Optional, Any, Callable
 import numpy as np
@@ -34,8 +35,10 @@ class AudioIngestionStream:
         self._stream: Optional[sd.InputStream] = None
         self._silence_start: float | None = None
         self._is_silent: bool = False
-        self.silence_debounce_time = 0.08  # 80ms (good starting point)
+        self.silence_debounce_time = 0.08  # 80ms
         self.clock = clock
+        self._running: bool = False
+        self._lock = threading.Lock()
 
     def _audio_callback(
         self,
@@ -83,14 +86,48 @@ class AudioIngestionStream:
 
     def start(self) -> None:
         """Instantiates the background sounddevice context loop and maintains lifecycle."""
-        self._stream = sd.InputStream(
-            samplerate=self.sample_rate,
-            blocksize=BUFFER_SIZE,
-            channels=CHANNELS,
-            callback=self._audio_callback,
-        )
+        with self._lock:
+            if self._running:
+                return  # Prevent spinning up duplicate streams concurrently
+            self._running = True
 
-        with self._stream:
-            print("Audio stream context initialized successfully...")
-            while self._stream.active:
-                sd.sleep(100)
+            self._stream = sd.InputStream(
+                samplerate=self.sample_rate,
+                blocksize=BUFFER_SIZE,
+                channels=CHANNELS,
+                callback=self._audio_callback,
+            )
+
+            try:
+                with self._stream:
+                    print("Audio stream context initialized successfully...")
+
+                    while self._running:
+                        try:
+                            if not self._stream.active:
+                                break
+                        except (sd.PortAudioError, AttributeError):
+                            # Catch context deletions triggered by concurrent test runner tear-downs
+                            break
+                        sd.sleep(100)
+            except Exception as e:
+                print(f"Audio ingestion stream exception: {e}")
+            finally:
+                self.stop()
+
+    def stop(self) -> None:
+        """Tears down the hardware stream layer."""
+        with self._lock:
+            if not self._running:
+                return
+            self._running = False
+
+        if self._stream:
+            try:
+                if self._stream.active:
+                    self._stream.stop()
+                self._stream.close()
+            except (sd.PortAudioError, AttributeError):
+                pass  # The stream pointer was already cleared or closed by the host environment
+            finally:
+                self._stream = None

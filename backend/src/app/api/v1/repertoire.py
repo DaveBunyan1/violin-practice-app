@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
+from app.database.models import RepertoirePiece
 from app.services.repertoire_service import (
     create_piece,
     get_active_practice_piece,
@@ -54,3 +55,14 @@ def patch_piece(piece_id: int, payload: PiecePatch, db: Session = Depends(get_db
         raise HTTPException(status_code=404, detail="Piece not found")
 
     return piece
+
+
+@router.delete("/{piece_id}", status_code=204)
+def delete_repertoire_piece(piece_id: int, db: Session = Depends(get_db)):
+    piece = db.query(RepertoirePiece).filter(RepertoirePiece.id == piece_id).first()
+    if not piece:
+        raise HTTPException(status_code=404, detail="Piece not found")
+
+    db.delete(piece)
+    db.commit()
+    return Response(status_code=204)
