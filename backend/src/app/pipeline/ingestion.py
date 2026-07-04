@@ -9,12 +9,8 @@ from app.pitch.autocorrelation import estimate_frequency
 from app.pitch.notes import calculate_pitch_error, freq_to_note
 from app.models.events import PitchObservationEvent
 from app.core.logging import logger
-
-# Domain-specific default configuration parameters
-SAMPLE_RATE = 44100
-BUFFER_SIZE = 8192  # Samples per chunk
-CHANNELS = 1
-AMBIENT_NOISE_THRESHOLD = 0.0001
+from app.core.config import settings
+from app.core.telemetry import generate_event_id
 
 
 class AudioIngestionStream:
@@ -26,8 +22,8 @@ class AudioIngestionStream:
     def __init__(
         self,
         inbound_queue: queue.Queue[PitchObservationEvent],
-        sample_rate: int = SAMPLE_RATE,
-        ambient_noise_threshold: float = AMBIENT_NOISE_THRESHOLD,
+        sample_rate: int = settings.SAMPLE_RATE,
+        ambient_noise_threshold: float = settings.AMBIENT_NOISE_THRESHOLD,
         clock: Callable[[], float] = time.perf_counter,
     ):
         self.inbound_queue = inbound_queue
@@ -49,6 +45,9 @@ class AudioIngestionStream:
         """Real-time audio buffer processing loop executed by the sounddevice engine."""
         _ = frames
         _ = status_time
+        event_id = generate_event_id()
+        created_at = self.clock()
+
         if status:
             return
 
@@ -80,9 +79,13 @@ class AudioIngestionStream:
             "note": note,
             "timestamp": current_timestamp,
             "pitch_cents_error": cents_error,
-            "pipeline_start": time.perf_counter(),
+            "telemetry": {
+                "event_id": event_id,
+                "created_at": created_at,
+            },
         }
-        self.inbound_queue.put(event)
+
+        self.inbound_queue.put_nowait(event)
 
     def start(self) -> None:
         """Instantiates the background sounddevice context loop and maintains lifecycle."""
@@ -94,8 +97,8 @@ class AudioIngestionStream:
             try:
                 self._stream = sd.InputStream(
                     samplerate=self.sample_rate,
-                    blocksize=BUFFER_SIZE,
-                    channels=CHANNELS,
+                    blocksize=settings.BUFFER_SIZE,
+                    channels=settings.CHANNELS,
                     callback=self._audio_callback,
                 )
                 self._stream.start()

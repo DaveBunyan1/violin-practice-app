@@ -1,5 +1,7 @@
 from typing import List, Optional, Callable
+import time
 
+from app.core.telemetry import generate_event_id
 from app.models.events import PitchObservationEvent, PerformedNoteEvent
 from app.core.logging import logger
 
@@ -177,17 +179,24 @@ class NoteSegmenter:
         if self._cents:
             avg = sum(self._cents) / len(self._cents)
 
-        self._callback(
-            {
-                "note": self._note,
-                "frequency": self._frequency,
-                "start_time": self._start_time,
-                "end_time": end_time,
-                "duration": end_time - self._start_time,
-                "avg_pitch_error_cents": avg,
-                "retry_count": 0,
-            }
-        )
+        event_id = generate_event_id()
+        created_at = time.perf_counter()
+
+        event: PerformedNoteEvent = {
+            "note": self._note,
+            "frequency": self._frequency,
+            "avg_pitch_error_cents": avg,
+            "start_time": self._start_time,
+            "end_time": end_time,
+            "duration": end_time - self._start_time,
+            "retry_count": 0,
+            "telemetry": {
+                "event_id": event_id,
+                "created_at": created_at,
+            },
+        }
+
+        self._callback(event)
 
     # -------------------------------------------------
     # Flush

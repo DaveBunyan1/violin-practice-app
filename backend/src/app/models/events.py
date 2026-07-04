@@ -13,6 +13,8 @@ Rules:
 
 from typing import Optional, TypedDict
 
+from app.models.telemetry_models import TelemetryMeta
+
 
 # 1. Raw Data Ingestion Layer
 class PitchObservationEvent(TypedDict):
@@ -22,7 +24,8 @@ class PitchObservationEvent(TypedDict):
     note: str
     timestamp: float  # perf_counter absolute time
     pitch_cents_error: Optional[float]
-    pipeline_start: float
+
+    telemetry: TelemetryMeta
 
 
 # 2. Segmented Data Layer
@@ -41,7 +44,8 @@ class PerformedNoteEvent(TypedDict):
     duration: float  # derived (end_time - start_time)
 
     retry_count: int
-    pipeline_start: float
+
+    telemetry: TelemetryMeta
 
 
 # 3. Session event
@@ -65,7 +69,6 @@ class AlignedNote(TypedDict):
 
     expected_time: float
     performed_start_time: Optional[float]
-    performed_end_time: Optional[float]
 
     pitch_error_cents: Optional[float]
     time_error: Optional[float]
@@ -98,3 +101,5 @@ class WebSocketBroadcastEvent(TypedDict):
 
     type: str  # e.g., "pitch"
     data: LiveDashboardMetrics
+
+    telemetry: TelemetryMeta

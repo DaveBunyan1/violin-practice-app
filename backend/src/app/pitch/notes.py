@@ -1,19 +1,18 @@
 import numpy as np
 
-A4 = 440.0
-NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "Bb", "B"]
+from app.core.config import settings
 
 
 def freq_to_note(freq: float) -> str:
     if freq <= 0:
         return "Unknown"
 
-    n = int(round(12 * np.log2(freq / A4)))
+    n = int(round(12 * np.log2(freq / settings.A4_PITCH)))
 
     index = (n + 9) % 12  # A = 9
     octave = 4 + ((n + 9) // 12)
 
-    return f"{NOTES[index]}{octave}"
+    return f"{settings.NOTES[index]}{octave}"
 
 
 def calculate_pitch_error(freq: float) -> float:
@@ -27,7 +26,7 @@ def calculate_pitch_error(freq: float) -> float:
         return 0.0
 
     # 1. Find how many semitones away from A4 this frequency is (as a float)
-    exact_semitones = 12 * np.log2(freq / A4)
+    exact_semitones = 12 * np.log2(freq / settings.A4_PITCH)
 
     # 2. Round to the nearest whole semitone (this is the perfect target note)
     nearest_semitone = round(exact_semitones)

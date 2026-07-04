@@ -14,10 +14,9 @@ from app.core.logging import logger
 class SessionController:
     def __init__(
         self,
-        target: PracticeTarget,
         segmenter: NoteSegmenter,
     ) -> None:
-        self.target = target
+        self.target: PracticeTarget | None = None
         self._segmenter = segmenter
 
         # Guard session state changes across WebSocket and processing threads
@@ -73,8 +72,7 @@ class SessionController:
         delay_buffer = countdownSeconds if countdownSeconds is not None else 0.0
         synchronized_start = time.perf_counter() + delay_buffer
         with self._lock:
-            self.target.mode = "piece"
-            self.target.active_piece = practice_piece
+            self.target = PracticeTarget("piece", active_piece=practice_piece)
 
             self._session = PracticeSession(
                 piece_id=piece_id,

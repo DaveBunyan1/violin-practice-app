@@ -1,16 +1,16 @@
+import asyncio
 import queue
 import threading
 from enum import Enum, auto
 
 from app.controllers.session_controller import SessionController
+from app.core.event_bus import EventBus
 from app.models.events import (
     PerformedNoteEvent,
     LiveDashboardMetrics,
-    WebSocketBroadcastEvent,
 )
 from app.core.logging import logger
-
-MAX_RETRIES = 3
+from app.core.config import settings
 
 
 class ProcessResult(Enum):
@@ -24,17 +24,24 @@ class NoteProcessingWorker:
         self,
         controller: SessionController,
         inbound_queue: queue.Queue[PerformedNoteEvent],
-        websocket_broadcast_queue: queue.Queue[WebSocketBroadcastEvent],
+        event_bus: EventBus,
         retry_queue: queue.Queue[PerformedNoteEvent],
         dead_letter_queue: queue.Queue[PerformedNoteEvent],
+        loop: asyncio.AbstractEventLoop,
     ) -> None:
         self.controller = controller
         self.inbound_queue = inbound_queue
-        self.websocket_broadcast_queue = websocket_broadcast_queue
-        self._stop_event = threading.Event()
+        self.event_bus = event_bus
+
         self.retry_queue = retry_queue
         self.dead_letter_queue = dead_letter_queue
 
+        self.loop = loop
+        self._stop_event = threading.Event()
+
+    # ----------------------------
+    # Lifecycle
+    # ----------------------------
     def stop(self) -> None:
         """Signals the background loop to shut down gracefully."""
         self._stop_event.set()
@@ -43,6 +50,9 @@ class NoteProcessingWorker:
     def is_running(self) -> bool:
         return not self._stop_event.is_set()
 
+    # ----------------------------
+    # Main worker loop
+    # ----------------------------
     def run(self) -> None:
         """
         Worker Loop:
@@ -59,41 +69,53 @@ class NoteProcessingWorker:
                 result = self._process_single_event(event)
 
                 if result == ProcessResult.RETRY:
-                    event["retry_count"] = event.get("retry_count", 0) + 1
-
-                    if event["retry_count"] > MAX_RETRIES:
-                        logger.error(
-                            "event_dead_lettered_max_retries",
-                            extra={"extra_context": {"event": event}},
-                        )
-                        self.dead_letter_queue.put(event)
-                    else:
-                        self.retry_queue.put(event)
-
-                        logger.warning(
-                            "event_retried",
-                            extra={"extra_context": {"event": event}},
-                        )
+                    self._handle_retry(event)
 
                 elif result == ProcessResult.DROP:
-                    self.dead_letter_queue.put(event)
-
-                    logger.error(
-                        "event_dropped",
-                        extra={"extra_context": {"event": event}},
-                    )
+                    self._handle_drop(event)
 
             finally:
                 self.inbound_queue.task_done()
 
+    # ----------------------------
+    # Retry / Drop handling
+    # ----------------------------
+    def _handle_retry(self, event: PerformedNoteEvent) -> None:
+        event["retry_count"] = event.get("retry_count", 0) + 1
+
+        if event["retry_count"] > settings.MAX_RETRIES:
+            logger.error(
+                "event_dead_lettered_max_retries",
+                extra={"extra_context": {"event": event}},
+            )
+            self.dead_letter_queue.put(event)
+        else:
+            self.retry_queue.put(event)
+
+            logger.warning(
+                "event_retried",
+                extra={"extra_context": {"event": event}},
+            )
+
+    def _handle_drop(self, event: PerformedNoteEvent) -> None:
+        self.dead_letter_queue.put(event)
+
+        logger.error(
+            "event_dropped",
+            extra={"extra_context": {"event": event}},
+        )
+
+    # ----------------------------
+    # Core processing
+    # ----------------------------
     def _process_single_event(self, event: PerformedNoteEvent) -> ProcessResult:
         """Handles the normalization, tracking, and transformation logic for an event."""
-        event.setdefault("retry_count", 0)
         try:
             if not self.controller.is_active():
                 return ProcessResult.DROP
 
             session = self.controller.get_session()
+
         except RuntimeError as e:
             logger.warning(
                 "session_error",
@@ -101,35 +123,54 @@ class NoteProcessingWorker:
             )
             return ProcessResult.RETRY
 
-        # 1. Normalize time (single source of truth)
-        session_start = session.start_time
+        telemetry = event["telemetry"]
+        event_id = telemetry["event_id"]
+        created_at = telemetry["created_at"]
+        # ----------------------------
+        # Normalize time
+        # ----------------------------
+        relative_start = event["start_time"] - session.start_time
 
-        relative_start = event["start_time"] - session_start
-        relative_end = event["end_time"] - session_start
-
-        # 2. Expected note lookup (time-based)
+        # ----------------------------
+        # Expected note lookup
+        # ----------------------------
         try:
+            if not self.controller.target:
+                return ProcessResult.RETRY
+
             expected = self.controller.target.get_expected_note(relative_start)
-        except Exception:
+
+        except Exception as e:
+            logger.warning(
+                "expected_note_lookup_failed",
+                extra={"extra_context": {"error": str(e)}},
+            )
             return ProcessResult.RETRY
+
         avg_cents = event.get("avg_pitch_error_cents")
 
-        # 3. Session event (clean storage format)
+        # ----------------------------
+        # Persist to session
+        # ----------------------------
         try:
             session.add_performed_note(
                 {
                     "note": event["note"],
-                    "frequency": event["frequency"],
                     "start_time": relative_start,
-                    "end_time": relative_end,
                     "duration": event["duration"],
-                    "avg_pitch_error_cents": event.get("avg_pitch_error_cents"),
+                    "avg_pitch_error_cents": avg_cents,
                 }
             )
-        except Exception:
+        except Exception as e:
+            logger.warning(
+                "session_persistence_failed",
+                extra={"extra_context": {"error": str(e)}},
+            )
             return ProcessResult.RETRY
 
-        # 4. Live UI metrics transformation
+        # ----------------------------
+        # Build live metrics
+        # ----------------------------
         metrics: LiveDashboardMetrics = {
             "frequency": event["frequency"],
             "note": event["note"],
@@ -138,15 +179,23 @@ class NoteProcessingWorker:
             "pitch_cents_error": avg_cents,
         }
 
-        # 5. Push to WebSocket output queue
-        try:
-            self.websocket_broadcast_queue.put(
+        # ----------------------------
+        # Emit to event bus
+        # ----------------------------
+        self._emit(metrics, event_id, created_at)
+
+        return ProcessResult.OK
+
+    def _emit(
+        self, metrics: LiveDashboardMetrics, event_id: str, created_at: float
+    ) -> None:
+        asyncio.run_coroutine_threadsafe(
+            self.event_bus.publish(
                 {
                     "type": "pitch",
                     "data": metrics,
-                }
-            )
-        except Exception:
-            return ProcessResult.RETRY
-
-        return ProcessResult.OK
+                    "telemetry": {"event_id": event_id, "created_at": created_at},
+                },
+            ),
+            self.loop,
+        )
