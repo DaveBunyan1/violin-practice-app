@@ -1,19 +1,23 @@
 import queue
+from typing import Optional, Tuple
 
 from app.models.events import PitchObservationEvent
 from app.core.logging import logger
 from app.core.shared_engines import segmenter
+from app.models.telemetry_models import TelemetryMeta
 
 
 def run_segmentation_pipeline(
-    inbound_raw_queue: queue.Queue[PitchObservationEvent],
+    inbound_raw_queue: queue.Queue[
+        Tuple[PitchObservationEvent, Optional[TelemetryMeta]]
+    ],
 ) -> None:
     """Worker Loop Thread: Pulls raw observations and passes them to the segmenter."""
     logger.info("Segmentation background thread worker started.")
 
     while True:
         try:
-            raw_event = inbound_raw_queue.get(timeout=1.0)
+            raw_event, trace = inbound_raw_queue.get(timeout=1.0)
 
             # logger.debug(
             #     f"Processing raw frame: {raw_event['note']}",
@@ -24,7 +28,7 @@ def run_segmentation_pipeline(
             #         }
             #     },
             # )
-            segmenter.process(raw_event)
+            segmenter.process(raw_event, trace)
             inbound_raw_queue.task_done()
         except queue.Empty:
             continue

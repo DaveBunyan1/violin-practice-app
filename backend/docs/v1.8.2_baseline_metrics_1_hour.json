@@ -1,0 +1,51 @@
+{
+  "telemetry_version": "1.8.2-pipeline",
+  "environment": {
+    "sample_rate_hz": 44100,
+    "buffer_size_samples": 2048,
+    "allocated_frame_window_ms": 46.44
+  },
+  "pipeline_analysis_ms": {
+    "total_frames": 4454,
+    "deadline_excursions": 1,
+    "stages": {
+      "1_audio_ingestion": {
+        "mean": 0.027,
+        "std": 0.016,
+        "p95": 0.062,
+        "p99": 0.077
+      },
+      "2_pitch_detection_dsp": {
+        "mean": 6.404,
+        "std": 2.925,
+        "p95": 11.807,
+        "p99": 17.355
+      },
+      "3_note_segmenter": {
+        "mean": 0.108,
+        "std": 0.065,
+        "p95": 0.227,
+        "p99": 0.377
+      },
+      "4_process_notes": {
+        "mean": 2.228,
+        "std": 2.82,
+        "p95": 7.867,
+        "p99": 12.457
+      },
+      "5_websocket_broadcast": {
+        "mean": 0.008,
+        "std": 0.011,
+        "p95": 0.021,
+        "p99": 0.034
+      },
+      "total_pipeline_lifecycle": {
+        "mean": 7.255,
+        "std": 3.581,
+        "p95": 14.301,
+        "p99": 20.227,
+        "max": 49.984
+      }
+    }
+  }
+}

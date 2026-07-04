@@ -20,6 +20,7 @@ broadcast_queue: queue.Queue[
     Tuple[WebSocketBroadcastEvent, Optional[TelemetryMeta]]
 ] = queue.Queue()
 
+
 target = PracticeTarget(mode="piece", active_piece=None)
 
 segmenter = NoteSegmenter()

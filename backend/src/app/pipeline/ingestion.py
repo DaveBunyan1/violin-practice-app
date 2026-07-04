@@ -9,7 +9,7 @@ from app.models.telemetry_models import TelemetryMeta
 from app.pitch.autocorrelation import estimate_frequency
 from app.pitch.notes import calculate_pitch_error, freq_to_note
 from app.models.events import PitchObservationEvent
-from app.main import telemetry
+from app.core.telemetry import telemetry
 
 # Domain-specific default configuration parameters
 SAMPLE_RATE = 44100
@@ -59,6 +59,8 @@ class AudioIngestionStream:
         # 1. Extract mono channel view without allocating duplicate memory
         audio_chunk = indata[:, 0].astype(np.float32)
 
+        trace["t_ingest"] = time.perf_counter()
+
         # 2. Vectorized RMS calculation for amplitude gating
         rms_volume = np.sqrt(np.mean(audio_chunk**2))
 
@@ -87,7 +89,7 @@ class AudioIngestionStream:
             "pitch_cents_error": cents_error,
         }
 
-        trace["t_ingest"] = time.perf_counter()
+        trace["t_pitch"] = time.perf_counter()
 
         self.inbound_queue.put((event, trace))
 

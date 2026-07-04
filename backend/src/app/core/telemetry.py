@@ -4,6 +4,7 @@ import uuid
 import numpy as np
 from multiprocessing import Queue
 from threading import Thread
+from pathlib import Path
 
 from app.models.telemetry_models import TelemetryMeta
 
@@ -37,6 +38,7 @@ class DistributedTelemetryHarness:
             "id": str(uuid.uuid4()),
             "t_start": time.perf_counter(),
             "t_ingest": 0.0,
+            "t_pitch": 0.0,
             "t_segment": 0.0,
             "t_process": 0.0,
             "t_websocket": 0.0,
@@ -46,17 +48,41 @@ class DistributedTelemetryHarness:
         """Called right before the websocket payload is pushed out."""
         t_end = time.perf_counter()
 
-        # Calculate individual intervals relative to the initial start time
-        # This keeps math accurate even if stages happen instantly
-        ingest_ms = (trace["t_ingest"] - trace["t_start"]) * 1000.0
-        segment_ms = (trace["t_segment"] - trace["t_ingest"]) * 1000.0
-        process_ms = (trace["t_process"] - trace["t_segment"]) * 1000.0
-        ws_ms = (t_end - trace["t_process"]) * 1000.0
-        total_ms = (t_end - trace["t_start"]) * 1000.0
+        t_start = trace.get("t_start", t_end)
+        t_ingest = trace.get("t_ingest", t_start)
+        t_pitch = trace.get("t_pitch", t_ingest)
+        t_segment = trace.get("t_segment", t_pitch)
+
+        if t_segment == 0.0:
+            t_segment = t_pitch
+
+        # If the controller dropped the frame early, t_process will be 0.0
+        # Fall back to t_segment so ws_ms doesn't blow up into a massive number
+        t_process = trace.get("t_process", 0.0)
+        if t_process == 0.0:
+            t_process = t_segment
+
+        # Calculate clean intervals
+        ingest_ms = (t_ingest - t_start) * 1000.0
+        pitch_ms = (
+            (t_pitch - t_ingest) * 1000.0 if trace.get("t_pitch", 0.0) != 0.0 else 0.0
+        )
+        segment_ms = (t_segment - t_pitch) * 1000.0
+
+        # If t_process was skipped, process_ms and ws_ms naturally fall to 0.0
+        process_ms = (
+            (t_process - t_segment) * 1000.0
+            if trace.get("t_process", 0.0) != 0.0
+            else 0.0
+        )
+        ws_ms = (
+            (t_end - t_process) * 1000.0 if trace.get("t_process", 0.0) != 0.0 else 0.0
+        )
+        total_ms = (t_end - t_start) * 1000.0
 
         try:
             self.metrics_queue.put_nowait(
-                (trace["id"], ingest_ms, segment_ms, process_ms, ws_ms, total_ms)
+                (ingest_ms, pitch_ms, segment_ms, process_ms, ws_ms, total_ms)
             )
         except Exception:
             pass
@@ -96,9 +122,29 @@ class DistributedTelemetryHarness:
 
         # Convert history to a structured NumPy array for vector operations
         # Columns: 0=Ingest, 1=DSP, 2=Alignment, 3=WebsocketBroadcast, 4=Total
-        data = np.array(self.trace_history)
+        metrics_data = np.array(self.trace_history, dtype=np.float64)
 
-        excursions = int(np.sum(data[:, 3] > self.allocated_window_ms))
+        masked_data = metrics_data.copy()
+        masked_data[masked_data == 0.0] = np.nan
+
+        excursions = int(np.sum(masked_data[:, 5] > self.allocated_window_ms))
+
+        def safe_stat(column_idx: int, stat_type: str = "mean"):
+            column = masked_data[:, column_idx]
+            # Strip out NaN values for this specific column's calculations
+            valid_data = column[~np.isnan(column)]
+
+            if len(valid_data) == 0:
+                return 0.0  # Return 0 if this stage was never executed once
+
+            if stat_type == "mean":
+                return round(float(np.mean(valid_data)), 3)
+            elif stat_type == "std":
+                return round(float(np.std(valid_data)), 3)
+            elif stat_type == "p95":
+                return round(float(np.percentile(valid_data, 95)), 3)
+            elif stat_type == "p99":
+                return round(float(np.percentile(valid_data, 99)), 3)
 
         report = {
             "telemetry_version": "1.8.2-pipeline",
@@ -108,34 +154,57 @@ class DistributedTelemetryHarness:
                 "allocated_frame_window_ms": round(self.allocated_window_ms, 3),
             },
             "pipeline_analysis_ms": {
-                "total_frames": len(data),
+                "total_frames": len(metrics_data),
                 "deadline_excursions": excursions,
                 "stages": {
                     "1_audio_ingestion": {
-                        "mean": round(float(np.mean(data[:, 0])), 3),
-                        "p95": round(float(np.percentile(data[:, 0], 95)), 3),
+                        "mean": safe_stat(0, "mean"),
+                        "std": safe_stat(0, "std"),
+                        "p95": safe_stat(0, "p95"),
+                        "p99": safe_stat(0, "p99"),
                     },
                     "2_pitch_detection_dsp": {
-                        "mean": round(float(np.mean(data[:, 1])), 3),
-                        "p95": round(float(np.percentile(data[:, 1], 95)), 3),
+                        "mean": safe_stat(1, "mean"),
+                        "std": safe_stat(1, "std"),
+                        "p95": safe_stat(1, "p95"),
+                        "p99": safe_stat(1, "p99"),
                     },
-                    "3_greedy_alignment": {
-                        "mean": round(float(np.mean(data[:, 2])), 3),
-                        "p95": round(float(np.percentile(data[:, 2], 95)), 3),
+                    "3_note_segmenter": {
+                        "mean": safe_stat(2, "mean"),
+                        "std": safe_stat(2, "std"),
+                        "p95": safe_stat(2, "p95"),
+                        "p99": safe_stat(2, "p99"),
                     },
-                    "4_websocket_broadcast": {
-                        "mean": round(float(np.mean(data[:, 3])), 3),
-                        "p95": round(float(np.percentile(data[:, 3], 95)), 3),
+                    "4_process_notes": {
+                        "mean": safe_stat(3, "mean"),
+                        "std": safe_stat(3, "std"),
+                        "p95": safe_stat(3, "p95"),
+                        "p99": safe_stat(3, "p99"),
+                    },
+                    "5_websocket_broadcast": {
+                        "mean": safe_stat(4, "mean"),
+                        "std": safe_stat(4, "std"),
+                        "p95": safe_stat(4, "p95"),
+                        "p99": safe_stat(4, "p99"),
                     },
                     "total_pipeline_lifecycle": {
-                        "mean": round(float(np.mean(data[:, 4])), 3),
-                        "p95": round(float(np.percentile(data[:, 3], 95)), 3),
-                        "max": round(float(np.max(data[:, 4])), 3),
+                        "mean": round(float(np.mean(metrics_data[:, 5])), 3),
+                        "std": round(float(np.std(metrics_data[:, 5])), 3),
+                        "p95": round(float(np.percentile(metrics_data[:, 5], 95)), 3),
+                        "p99": round(float(np.percentile(metrics_data[:, 5], 99)), 3),
+                        "max": round(float(np.max(metrics_data[:, 5])), 3),
                     },
                 },
             },
         }
 
-        with open(export_path, "w") as f:
+        output_file = Path(export_path)
+
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(output_file, "w") as f:
             json.dump(report, f, indent=2)
         print(f"Full pipeline telemetry report exported to {export_path}")
+
+
+telemetry = DistributedTelemetryHarness()

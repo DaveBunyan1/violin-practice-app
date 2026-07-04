@@ -41,3 +41,11 @@ To transform raw acoustic data into actionable feedback, the system architecture
 ## Current Engineering Focus: Note Segmentation
 
 While the end goal is comprehensive performance evaluation, downstream stages (alignment, pitch tracking, and timing metrics) are entirely dependent on clean input boundaries. Because the system cannot analyze a performance until it can reliably identify when notes begin and end, **Note Segmentation** represents the primary algorithmic bottleneck and the first major engineering challenge documented below.
+
+# This
+
+"From Global Singletons to Runtime Dependency Graphs (The v1.9.0 Refactor)":
+
+"In early versions (v1.8.x), cross-cutting concerns like telemetry and data queues were handled via module-level shared global singletons. While simple to implement, this tightly coupled the system boundaries, making components untestable in isolation and preventing clean memory state teardowns between practice sessions.
+
+In v1.9.0, the backend was refactored around an explicit Runtime Dependency Graph. All engine lifecycles, configuration contexts, and telemetry collectors are systematically instantiated at runtime boot and injected into constructors down the pipeline stream. This inversion of control facilitates pure unit testing environments, dynamic configuration swaps, and prevents memory leaks during long-running microphone capture loops."

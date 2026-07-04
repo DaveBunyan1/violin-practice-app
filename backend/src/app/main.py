@@ -16,6 +16,7 @@ from app.core.shared_engines import (
     segmented_queue,
 )
 from app.core.pipeline import run_segmentation_pipeline
+from app.core.telemetry import telemetry
 from app.models.events import (
     PerformedNoteEvent,
 )
@@ -26,12 +27,9 @@ from app.pipeline.process_notes import process_notes
 from app.api.v1.repertoire import router as repertoire_router
 from app.api.v1.session import router as session_router
 from app.api.v1.telemetry import router as telemetry_router
-from app.core.telemetry import DistributedTelemetryHarness
 
 # Database imports
 from app.database.connection import engine, Base
-
-telemetry = DistributedTelemetryHarness()
 
 
 def shutdown_and_compute_metrics():

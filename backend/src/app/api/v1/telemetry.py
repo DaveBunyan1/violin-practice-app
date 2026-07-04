@@ -6,7 +6,7 @@ from fastapi import WebSocket, WebSocketDisconnect, APIRouter
 
 from app.core.logging import logger
 from app.core.shared_engines import broadcast_queue
-from app.main import telemetry
+from app.core.telemetry import telemetry
 
 router = APIRouter()
 
@@ -27,9 +27,11 @@ async def websocket_stream_endpoint(websocket: WebSocket):
             try:
                 # Get the event from Thread C's queue output
                 event, trace = broadcast_queue.get_nowait()
+                print("In websocket:", event, trace)
 
                 if trace:
                     trace["t_websocket"] = time.perf_counter()
+                    print("WS trace:", trace)
                     telemetry.complete_trace(trace)
 
                 # Send it over the active WebSocket network channel

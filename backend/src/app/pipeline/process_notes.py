@@ -3,6 +3,7 @@ import time
 from typing import Optional, Tuple
 
 from app.controllers.session_controller import SessionController
+from app.core.telemetry import telemetry
 from app.models.events import (
     PerformedNoteEvent,
     LiveDashboardMetrics,
@@ -30,10 +31,14 @@ def process_notes(
 
             if not controller.is_active():
                 inbound_queue.task_done()
+                if trace:
+                    telemetry.complete_trace(trace)
                 continue
 
         except RuntimeError:
             inbound_queue.task_done()
+            if trace:
+                telemetry.complete_trace(trace)
             continue
 
         # ------------------------------------------------
@@ -79,6 +84,7 @@ def process_notes(
         # ------------------------------------------------
         if trace:
             trace["t_process"] = time.perf_counter()
+
         websocket_broadcast_queue.put(
             (
                 {
@@ -89,4 +95,7 @@ def process_notes(
             )
         )
 
+        event, trace = websocket_broadcast_queue.get()
+        if trace:
+            telemetry.complete_trace(trace)
         inbound_queue.task_done()
