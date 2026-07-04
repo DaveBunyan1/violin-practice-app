@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
+from app.core.runtime import RuntimeGraph
 from app.database.connection import get_db
+from app.dependencies.runtime import get_runtime
 from app.models.events import SessionStoredNote
 from app.models.session_models import (
     EndSessionOutput,
@@ -11,7 +13,6 @@ from app.models.session_models import (
     StartSessionPayload,
 )
 
-from app.core.shared_engines import session_controller, score_engine
 from app.services.session_service import (
     create_session_history_record,
     get_historical_sessions,
@@ -25,9 +26,13 @@ router = APIRouter()
 
 
 @router.post("/start", response_model=StartSessionOutput)
-def start_session(payload: StartSessionPayload, db: Session = Depends(get_db)):
+def start_session(
+    payload: StartSessionPayload,
+    db: Session = Depends(get_db),
+    runtime: RuntimeGraph = Depends(get_runtime),
+):
     """Starts the active practice session recording window."""
-    if session_controller.is_active():
+    if runtime.session_controller.is_active():
         logger.warning(
             "session_start_rejected_already_running",
             extra={"extra_context": {"attempted_piece_id": payload.piece_id}},
@@ -39,7 +44,7 @@ def start_session(payload: StartSessionPayload, db: Session = Depends(get_db)):
     with telemetry.measure("api_start_session") as ctx:
         ctx["piece_id"] = payload.piece_id
         try:
-            session_controller.start_session(
+            runtime.session_controller.start_session(
                 db=db,
                 piece_id=payload.piece_id,
                 start_bar=payload.start_bar,
@@ -58,14 +63,16 @@ def start_session(payload: StartSessionPayload, db: Session = Depends(get_db)):
 
         return StartSessionOutput(
             message="Practice session started successfully.",
-            session_active=session_controller.is_active(),
+            session_active=runtime.session_controller.is_active(),
         )
 
 
 @router.post("/end")
-def end_session(db: Session = Depends(get_db)) -> EndSessionOutput:
+def end_session(
+    db: Session = Depends(get_db), runtime: RuntimeGraph = Depends(get_runtime)
+) -> EndSessionOutput:
     """Stops the recording session and calculates final session score metrics."""
-    if not session_controller.is_active():
+    if not runtime.session_controller.is_active():
         logger.warning("session_end_rejected_no_active_session")
         raise HTTPException(
             status_code=400, detail="No active session found to terminate."
@@ -73,11 +80,11 @@ def end_session(db: Session = Depends(get_db)) -> EndSessionOutput:
 
     with telemetry.measure("api_end_session") as ctx:
         try:
-            domain_session = session_controller.get_session()
+            domain_session = runtime.session_controller.get_session()
             ctx["piece_id"] = domain_session.piece_id
 
             # 1. Trigger the score engine calculation loop while state is isolated
-            final_score = score_engine.compute()
+            final_score = runtime.score_engine.compute()
             performed_notes_list = domain_session.get_performed_notes()
 
             # 2. Delegate database record creation completely to the service layer
@@ -93,7 +100,7 @@ def end_session(db: Session = Depends(get_db)) -> EndSessionOutput:
             session_id = db_session_record.id
 
             # 4. Clear memory states in the live controller after disk write completes
-            session_controller.end_session()
+            runtime.session_controller.end_session()
 
         except RuntimeError as e:
             db.rollback()

@@ -46,7 +46,7 @@ class AudioIngestionStream:
         _ = frames
         _ = status_time
         event_id = generate_event_id()
-        created_at = self.clock()
+        now = self.clock()
 
         if status:
             return
@@ -57,10 +57,7 @@ class AudioIngestionStream:
         # 2. Vectorized RMS calculation for amplitude gating
         rms_volume = np.sqrt(np.mean(audio_chunk**2))
 
-        # 3. Set timestamp
-        current_timestamp = self.clock()
-
-        # 4. Pure instantaneous evaluation (No internal state or accumulation)
+        # 3. Pure instantaneous evaluation (No internal state or accumulation)
         if rms_volume < self.ambient_noise_threshold:
             freq = 0.0
             note = "REST"
@@ -77,11 +74,11 @@ class AudioIngestionStream:
         event: PitchObservationEvent = {
             "frequency": freq,
             "note": note,
-            "timestamp": current_timestamp,
+            "timestamp": now,
             "pitch_cents_error": cents_error,
             "telemetry": {
                 "event_id": event_id,
-                "created_at": created_at,
+                "created_at": now,
             },
         }
 
