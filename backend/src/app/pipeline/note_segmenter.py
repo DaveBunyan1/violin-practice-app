@@ -1,5 +1,7 @@
+import time
 from typing import List, Optional, Callable
 from app.models.events import PitchObservationEvent, PerformedNoteEvent
+from app.models.telemetry_models import TelemetryMeta
 
 
 class NoteSegmenter:
@@ -26,15 +28,22 @@ class NoteSegmenter:
         self._candidate_start_time: Optional[float] = None
         self._candidate_cents_errors: List[float] = []
 
-        self._callback: Optional[Callable[[PerformedNoteEvent], None]] = None
+        self._callback: Optional[
+            Callable[[PerformedNoteEvent, Optional[TelemetryMeta]], None]
+        ] = None
 
-    def set_callback(self, callback: Callable[[PerformedNoteEvent], None]) -> None:
+    def set_callback(
+        self,
+        callback: Callable[[PerformedNoteEvent, Optional[TelemetryMeta]], None],
+    ) -> None:
         self._callback = callback
 
     # -------------------------------------------------
     # Main entry
     # -------------------------------------------------
-    def process(self, event: PitchObservationEvent) -> None:
+    def process(
+        self, event: PitchObservationEvent, trace: Optional[TelemetryMeta] = None
+    ) -> None:
         note = event["note"]
         freq = event["frequency"]
         timestamp = event["timestamp"]
@@ -66,7 +75,7 @@ class NoteSegmenter:
 
         # confirm stability
         if timestamp - self._candidate_start_time >= self.stability_threshold:
-            self._commit_candidate(timestamp)
+            self._commit_candidate(timestamp, trace)
 
     # -------------------------------------------------
     # State transitions
@@ -93,13 +102,15 @@ class NoteSegmenter:
         self._candidate_start_time = None
         self._candidate_cents_errors = []
 
-    def _commit_candidate(self, timestamp: float) -> None:
+    def _commit_candidate(
+        self, timestamp: float, trace: Optional[TelemetryMeta]
+    ) -> None:
         """
         Finalise current note and emit it, then switch to candidate.
         """
 
         # emit previous note
-        self._emit_current_note(timestamp)
+        self._emit_current_note(timestamp, trace)
 
         # promote candidate → current
         self._current_note = self._candidate_note
@@ -112,7 +123,9 @@ class NoteSegmenter:
     # -------------------------------------------------
     # Output
     # -------------------------------------------------
-    def _emit_current_note(self, end_timestamp: float) -> None:
+    def _emit_current_note(
+        self, end_timestamp: float, trace: Optional[TelemetryMeta]
+    ) -> None:
         if self._callback is None:
             return
 
@@ -138,8 +151,10 @@ class NoteSegmenter:
             "duration": end_timestamp - self._note_start_time,
             "avg_pitch_error_cents": avg_cents_error,
         }
+        if trace:
+            trace["t_segment"] = time.perf_counter()
 
-        self._callback(event)
+        self._callback(event, trace)
 
     # -------------------------------------------------
     # Public utilities
@@ -158,5 +173,5 @@ class NoteSegmenter:
         if self._current_note is None:
             return
 
-        self._emit_current_note(timestamp)
+        self._emit_current_note(timestamp, trace=None)
         self.reset()

@@ -1,10 +1,12 @@
 import asyncio
 import queue
+import time
 
 from fastapi import WebSocket, WebSocketDisconnect, APIRouter
 
 from app.core.logging import logger
 from app.core.shared_engines import broadcast_queue
+from app.main import telemetry
 
 router = APIRouter()
 
@@ -24,7 +26,11 @@ async def websocket_stream_endpoint(websocket: WebSocket):
             # Using asyncio.sleep allows other network connections to share resources smoothly.
             try:
                 # Get the event from Thread C's queue output
-                event = broadcast_queue.get_nowait()
+                event, trace = broadcast_queue.get_nowait()
+
+                if trace:
+                    trace["t_websocket"] = time.perf_counter()
+                    telemetry.complete_trace(trace)
 
                 # Send it over the active WebSocket network channel
                 await websocket.send_json(event)

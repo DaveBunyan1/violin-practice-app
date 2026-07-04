@@ -1,4 +1,6 @@
 import queue
+import time
+from typing import Optional, Tuple
 
 from app.controllers.session_controller import SessionController
 from app.models.events import (
@@ -6,19 +8,22 @@ from app.models.events import (
     LiveDashboardMetrics,
     WebSocketBroadcastEvent,
 )
+from app.models.telemetry_models import TelemetryMeta
 
 
 def process_notes(
     controller: SessionController,
-    inbound_queue: queue.Queue[PerformedNoteEvent],
-    websocket_broadcast_queue: queue.Queue[WebSocketBroadcastEvent],
+    inbound_queue: queue.Queue[Tuple[PerformedNoteEvent, Optional[TelemetryMeta]]],
+    websocket_broadcast_queue: queue.Queue[
+        Tuple[WebSocketBroadcastEvent, Optional[TelemetryMeta]]
+    ],
 ) -> None:
     """
     Pipeline stage:
     PerformedNoteEvent → SessionEvent + LiveDashboardMetrics
     """
     while True:
-        event = inbound_queue.get()
+        event, trace = inbound_queue.get()
 
         try:
             session = controller.get_session()
@@ -72,11 +77,16 @@ def process_notes(
         # ------------------------------------------------
         # 5. WebSocket output
         # ------------------------------------------------
+        if trace:
+            trace["t_process"] = time.perf_counter()
         websocket_broadcast_queue.put(
-            {
-                "type": "pitch",
-                "data": metrics,
-            }
+            (
+                {
+                    "type": "pitch",
+                    "data": metrics,
+                },
+                trace,
+            )
         )
 
         inbound_queue.task_done()

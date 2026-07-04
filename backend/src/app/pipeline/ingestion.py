@@ -1,13 +1,15 @@
 import queue
 import threading
 import time
-from typing import Optional, Any, Callable
+from typing import Optional, Any, Callable, Tuple
 import numpy as np
 import sounddevice as sd  # type: ignore
 
+from app.models.telemetry_models import TelemetryMeta
 from app.pitch.autocorrelation import estimate_frequency
 from app.pitch.notes import calculate_pitch_error, freq_to_note
 from app.models.events import PitchObservationEvent
+from app.main import telemetry
 
 # Domain-specific default configuration parameters
 SAMPLE_RATE = 44100
@@ -24,7 +26,7 @@ class AudioIngestionStream:
 
     def __init__(
         self,
-        inbound_queue: queue.Queue[PitchObservationEvent],
+        inbound_queue: queue.Queue[Tuple[PitchObservationEvent, TelemetryMeta]],
         sample_rate: int = SAMPLE_RATE,
         ambient_noise_threshold: float = AMBIENT_NOISE_THRESHOLD,
         clock: Callable[[], float] = time.perf_counter,
@@ -53,6 +55,7 @@ class AudioIngestionStream:
         if status:
             return
 
+        trace = telemetry.create_trace()
         # 1. Extract mono channel view without allocating duplicate memory
         audio_chunk = indata[:, 0].astype(np.float32)
 
@@ -73,6 +76,7 @@ class AudioIngestionStream:
             cents_error = calculate_pitch_error(freq)
 
         if note != "REST" and freq < 190.0 or freq > 3000.0:
+            telemetry.discard_trace()
             return
 
         # 5. Thread-safe dispatch out of the high-priority callback context
@@ -82,7 +86,10 @@ class AudioIngestionStream:
             "timestamp": current_timestamp,
             "pitch_cents_error": cents_error,
         }
-        self.inbound_queue.put(event)
+
+        trace["t_ingest"] = time.perf_counter()
+
+        self.inbound_queue.put((event, trace))
 
     def start(self) -> None:
         """Instantiates the background sounddevice context loop and maintains lifecycle."""

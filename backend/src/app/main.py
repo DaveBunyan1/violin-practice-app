@@ -1,10 +1,12 @@
 import threading
 
 from contextlib import asynccontextmanager
+from typing import Optional
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Core application imports
+from app.models.telemetry_models import TelemetryMeta
 from app.pipeline.ingestion import AudioIngestionStream
 from app.core.shared_engines import (
     segmenter,
@@ -24,9 +26,27 @@ from app.pipeline.process_notes import process_notes
 from app.api.v1.repertoire import router as repertoire_router
 from app.api.v1.session import router as session_router
 from app.api.v1.telemetry import router as telemetry_router
+from app.core.telemetry import DistributedTelemetryHarness
 
 # Database imports
 from app.database.connection import engine, Base
+
+telemetry = DistributedTelemetryHarness()
+
+
+def shutdown_and_compute_metrics():
+    """
+    Executes a disciplined, blocking flush of the performance telemetry engine.
+    Ensures no telemetry dropouts or truncated files at session termination.
+    """
+    print("\n🛑 Initiating performance telemetry teardown sequence...")
+
+    # 1. Stop accepting new frame records and process whatever is left in the queue.
+    # This automatically computes final averages, P95 metrics, and writes the JSON file.
+    export_target = "docs/v1.8.2_baseline_metrics.json"
+    telemetry.stop_session(export_path=export_target)
+
+    print("✨ Performance benchmarking complete.")
 
 
 # -----------------------------------------------------------------
@@ -38,12 +58,12 @@ async def lifespan(app: FastAPI):
     Manages application startup and shutdown events, safely wrapping
     the background real-time processing topology threads.
     """
-
+    telemetry.start_session()
     logger.info("Syncing relational database structural schemas...")
     Base.metadata.create_all(bind=engine)
 
     # Wire up Stage 2 (Segmentation) callback to queue
-    def on_segmented(note: PerformedNoteEvent):
+    def on_segmented(note: PerformedNoteEvent, trace: Optional[TelemetryMeta]):
         logger.info(
             f"Segmenter committed note: {note['note']}",
             extra={
@@ -53,7 +73,7 @@ async def lifespan(app: FastAPI):
                 }
             },
         )
-        segmented_queue.put(note)
+        segmented_queue.put((note, trace))
 
     segmenter.set_callback(on_segmented)
 
@@ -78,6 +98,8 @@ async def lifespan(app: FastAPI):
     ).start()
 
     yield  # FastAPI Application Runs Here
+
+    shutdown_and_compute_metrics()
 
     logger.info("Shutting down background service threads.")
 
