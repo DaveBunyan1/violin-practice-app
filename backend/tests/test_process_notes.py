@@ -39,7 +39,7 @@ def test_process_notes_happy_path():
     }
 
     # 🌟 THE TRICK: First call returns the event, second call crashes to break the loop
-    inbound_q.get.side_effect = [mock_event, BreakLoopException()]
+    inbound_q.get.side_effect = [(mock_event, None), BreakLoopException()]
 
     # 3. Execute the pipeline block
     with pytest.raises(BreakLoopException):
@@ -77,7 +77,8 @@ def test_process_notes_happy_path():
                 "expected_note": "A4",
                 "pitch_cents_error": 5.0,
             },
-        }
+        },
+        None,
     )
 
     # Ensure task_done is always called to clean up the queue item state
@@ -100,7 +101,7 @@ def test_process_notes_skips_if_session_inactive():
         "end_time": 11.0,
         "duration": 1.0,
     }
-    inbound_q.get.side_effect = [mock_event, BreakLoopException()]
+    inbound_q.get.side_effect = [(mock_event, None), BreakLoopException()]
 
     with pytest.raises(BreakLoopException):
         process_notes(mock_controller, inbound_q, broadcast_q)
@@ -130,7 +131,7 @@ def test_process_notes_handles_runtime_error_on_missing_session():
     }
 
     # Pass the event, then break the loop
-    inbound_q.get.side_effect = [mock_event, BreakLoopException()]
+    inbound_q.get.side_effect = [(mock_event, None), BreakLoopException()]
 
     # 2. Run the loop
     with pytest.raises(BreakLoopException):

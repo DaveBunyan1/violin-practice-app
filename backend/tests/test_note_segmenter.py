@@ -29,7 +29,7 @@ def test_single_sustained_note():
 def test_note_transition_emits_previous_note():
     segmenter = NoteSegmenter(stability_threshold=0.1)
     output = []
-    segmenter.set_callback(output.append)
+    segmenter.set_callback(lambda note, trace: output.append(note))
 
     events: List[PitchObservationEvent] = [
         {"note": "A4", "frequency": 440.0, "timestamp": 0.00, "pitch_cents_error": 0.0},
@@ -50,7 +50,7 @@ def test_note_transition_emits_previous_note():
 def test_stability_threshold_boundary():
     segmenter = NoteSegmenter(stability_threshold=0.1)
     output = []
-    segmenter.set_callback(output.append)
+    segmenter.set_callback(lambda note, trace: output.append(note))
 
     events: List[PitchObservationEvent] = [
         {"note": "A4", "frequency": 440.0, "timestamp": 0.00, "pitch_cents_error": 0.0},
@@ -74,7 +74,7 @@ def test_short_term_pitch_fluctuations_do_not_trigger_emission():
     """
     segmenter = NoteSegmenter(stability_threshold=0.1)
     output = []
-    segmenter.set_callback(output.append)
+    segmenter.set_callback(lambda note, trace: output.append(note))
 
     events: List[PitchObservationEvent] = [
         {"note": "A4", "frequency": 440.0, "timestamp": 0.00, "pitch_cents_error": 0.0},
@@ -104,7 +104,7 @@ def test_early_note_flicker_does_not_emit():
     """
     segmenter = NoteSegmenter(stability_threshold=0.1)
     output = []
-    segmenter.set_callback(output.append)
+    segmenter.set_callback(lambda note, trace: output.append(note))
 
     events: List[PitchObservationEvent] = [
         {"note": "A4", "timestamp": 0.00, "frequency": 440.0, "pitch_cents_error": 0.0},
@@ -123,7 +123,7 @@ def test_multi_note_flicker_does_not_commit_wrong_transitions():
     """
     segmenter = NoteSegmenter(stability_threshold=0.1)
     output = []
-    segmenter.set_callback(output.append)
+    segmenter.set_callback(lambda note, trace: output.append(note))
 
     events: List[PitchObservationEvent] = [
         {"note": "A4", "timestamp": 0.00, "frequency": 440.0, "pitch_cents_error": 0.0},
@@ -146,7 +146,7 @@ def test_rest_finalizes_note_and_preserves_none():
     """Verifies that a valid note registers a 0.0 average error if all its frames were perfect."""
     segmenter = NoteSegmenter(stability_threshold=0.1)
     output = []
-    segmenter.set_callback(output.append)
+    segmenter.set_callback(lambda note, trace: output.append(note))
 
     events: List[PitchObservationEvent] = [
         {"note": "A4", "timestamp": 0.00, "frequency": 440.0, "pitch_cents_error": 0.0},
@@ -177,7 +177,7 @@ def test_none_values_do_not_affect_average():
     """Verifies that pitch errors of None are ignored in the mathematical average calculation."""
     segmenter = NoteSegmenter(stability_threshold=0.1)
     output = []
-    segmenter.set_callback(output.append)
+    segmenter.set_callback(lambda note, trace: output.append(note))
 
     events: List[PitchObservationEvent] = [
         {"note": "A4", "timestamp": 0.00, "frequency": 440.0, "pitch_cents_error": 5.0},
@@ -213,7 +213,7 @@ def test_none_values_do_not_affect_average():
 def test_flush_no_active_note_is_noop():
     segmenter = NoteSegmenter(stability_threshold=0.1)
     output = []
-    segmenter.set_callback(output.append)
+    segmenter.set_callback(lambda note, trace: output.append(note))
 
     segmenter.flush(timestamp=1.0)
 
@@ -223,7 +223,7 @@ def test_flush_no_active_note_is_noop():
 def test_single_frame_can_be_flushed():
     segmenter = NoteSegmenter(stability_threshold=0.1)
     output = []
-    segmenter.set_callback(output.append)
+    segmenter.set_callback(lambda note, trace: output.append(note))
 
     segmenter.process(
         {"note": "A4", "timestamp": 0.0, "frequency": 440.0, "pitch_cents_error": 5.0}
@@ -238,7 +238,7 @@ def test_single_frame_can_be_flushed():
 def test_final_note_is_flushed():
     segmenter = NoteSegmenter(stability_threshold=0.1)
     output = []
-    segmenter.set_callback(output.append)
+    segmenter.set_callback(lambda note, trace: output.append(note))
 
     events: List[PitchObservationEvent] = [
         {"note": "A4", "timestamp": 0.00, "frequency": 440.0, "pitch_cents_error": 0.0},
@@ -261,7 +261,7 @@ def test_final_note_is_flushed():
 def test_identical_timestamps_are_ignored_for_stability():
     segmenter = NoteSegmenter(stability_threshold=0.1)
     output = []
-    segmenter.set_callback(output.append)
+    segmenter.set_callback(lambda note, trace: output.append(note))
 
     events: List[PitchObservationEvent] = [
         {"note": "A4", "timestamp": 0.00, "frequency": 440.0, "pitch_cents_error": 0.0},
@@ -277,7 +277,7 @@ def test_identical_timestamps_are_ignored_for_stability():
 def test_out_of_order_timestamps_do_not_break_logic():
     segmenter = NoteSegmenter(stability_threshold=0.1)
     output = []
-    segmenter.set_callback(output.append)
+    segmenter.set_callback(lambda note, trace: output.append(note))
 
     events: List[PitchObservationEvent] = [
         {"note": "A4", "timestamp": 0.10, "frequency": 440.0, "pitch_cents_error": 0.0},

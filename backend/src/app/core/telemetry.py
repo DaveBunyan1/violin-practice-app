@@ -108,7 +108,7 @@ class DistributedTelemetryHarness:
             except Exception:
                 continue
 
-    def stop_session(self, export_path: str = "docs/v1.8.2_pipeline_baseline.json"):
+    def stop_session(self, export_path: str = "docs/v1.9.0_pipeline_baseline.json"):
         self.is_running = False
         if self.consumer_thread:
             self.consumer_thread.join()
@@ -205,6 +205,3 @@ class DistributedTelemetryHarness:
         with open(output_file, "w") as f:
             json.dump(report, f, indent=2)
         print(f"Full pipeline telemetry report exported to {export_path}")
-
-
-telemetry = DistributedTelemetryHarness()

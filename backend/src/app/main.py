@@ -1,109 +1,14 @@
-import threading
-
-from contextlib import asynccontextmanager
-from typing import Optional
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Core application imports
-from app.models.telemetry_models import TelemetryMeta
-from app.pipeline.ingestion import AudioIngestionStream
-from app.core.shared_engines import (
-    segmenter,
-    session_controller,
-    pitch_queue,
-    broadcast_queue,
-    segmented_queue,
-)
-from app.core.pipeline import run_segmentation_pipeline
-from app.core.telemetry import telemetry
-from app.models.events import (
-    PerformedNoteEvent,
-)
-from app.core.logging import logger
-
-from app.models.router_models import HealthCheckReturn
-from app.pipeline.process_notes import process_notes
+from app.core.lifespan import lifespan
 from app.api.v1.repertoire import router as repertoire_router
 from app.api.v1.session import router as session_router
 from app.api.v1.telemetry import router as telemetry_router
 
-# Database imports
-from app.database.connection import engine, Base
-
-
-def shutdown_and_compute_metrics():
-    """
-    Executes a disciplined, blocking flush of the performance telemetry engine.
-    Ensures no telemetry dropouts or truncated files at session termination.
-    """
-    print("\n🛑 Initiating performance telemetry teardown sequence...")
-
-    # 1. Stop accepting new frame records and process whatever is left in the queue.
-    # This automatically computes final averages, P95 metrics, and writes the JSON file.
-    export_target = "docs/v1.8.2_baseline_metrics.json"
-    telemetry.stop_session(export_path=export_target)
-
-    print("✨ Performance benchmarking complete.")
-
-
 # -----------------------------------------------------------------
-# 1. FastAPI Lifespan (Thread Topology Management)
-# -----------------------------------------------------------------
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    Manages application startup and shutdown events, safely wrapping
-    the background real-time processing topology threads.
-    """
-    telemetry.start_session()
-    logger.info("Syncing relational database structural schemas...")
-    Base.metadata.create_all(bind=engine)
-
-    # Wire up Stage 2 (Segmentation) callback to queue
-    def on_segmented(note: PerformedNoteEvent, trace: Optional[TelemetryMeta]):
-        logger.info(
-            f"Segmenter committed note: {note['note']}",
-            extra={
-                "extra_context": {
-                    "duration": round(note["duration"], 2),
-                    "avg_pitch_error_cents": note.get("avg_pitch_error_cents"),
-                }
-            },
-        )
-        segmented_queue.put((note, trace))
-
-    segmenter.set_callback(on_segmented)
-
-    # Instantiate Object-Oriented Audio Ingestion
-    audio_streamer = AudioIngestionStream(inbound_queue=pitch_queue)
-
-    logger.info("Initializing system harness topology background threads.")
-
-    # Thread A: Microphone Input Ingestion
-    threading.Thread(target=audio_streamer.start, daemon=True).start()
-
-    # Thread B: Note Segmentation State Machine
-    threading.Thread(
-        target=run_segmentation_pipeline, args=(pitch_queue,), daemon=True
-    ).start()
-
-    # Thread C: Sequence Alignment & Scoring Engine
-    threading.Thread(
-        target=process_notes,
-        args=(session_controller, segmented_queue, broadcast_queue),
-        daemon=True,
-    ).start()
-
-    yield  # FastAPI Application Runs Here
-
-    shutdown_and_compute_metrics()
-
-    logger.info("Shutting down background service threads.")
-
-
-# -----------------------------------------------------------------
-# 2. FastAPI Initialization
+# FastAPI Initialization
 # -----------------------------------------------------------------
 app = FastAPI(
     title="Violin Intonation Pipeline API",
@@ -119,15 +24,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.get("/health")
-def health_check() -> HealthCheckReturn:
-    return {
-        "status": "healthy",
-        "version": "1.3.0",
-        "session_active": session_controller.is_active(),
-    }
 
 
 app.include_router(repertoire_router, prefix="/repertoire", tags=["repertoire"])

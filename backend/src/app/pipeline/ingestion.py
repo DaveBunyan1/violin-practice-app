@@ -5,11 +5,11 @@ from typing import Optional, Any, Callable, Tuple
 import numpy as np
 import sounddevice as sd  # type: ignore
 
+from app.core.telemetry import DistributedTelemetryHarness
 from app.models.telemetry_models import TelemetryMeta
 from app.pitch.autocorrelation import estimate_frequency
 from app.pitch.notes import calculate_pitch_error, freq_to_note
 from app.models.events import PitchObservationEvent
-from app.core.telemetry import telemetry
 
 # Domain-specific default configuration parameters
 SAMPLE_RATE = 44100
@@ -26,17 +26,19 @@ class AudioIngestionStream:
 
     def __init__(
         self,
-        inbound_queue: queue.Queue[Tuple[PitchObservationEvent, TelemetryMeta]],
+        inbound_queue: queue.Queue[
+            Tuple[PitchObservationEvent, Optional[TelemetryMeta]]
+        ],
+        telemetry: Optional[DistributedTelemetryHarness] = None,
         sample_rate: int = SAMPLE_RATE,
         ambient_noise_threshold: float = AMBIENT_NOISE_THRESHOLD,
         clock: Callable[[], float] = time.perf_counter,
     ):
         self.inbound_queue = inbound_queue
+        self.telemetry = telemetry
         self.sample_rate = sample_rate
         self.ambient_noise_threshold = ambient_noise_threshold
         self._stream: Optional[sd.InputStream] = None
-        self._silence_start: float | None = None
-        self._is_silent: bool = False
         self.silence_debounce_time = 0.08  # 80ms
         self.clock = clock
         self._running: bool = False
@@ -55,11 +57,15 @@ class AudioIngestionStream:
         if status:
             return
 
-        trace = telemetry.create_trace()
+        if self.telemetry:
+            trace = self.telemetry.create_trace()
+        else:
+            trace = None
         # 1. Extract mono channel view without allocating duplicate memory
         audio_chunk = indata[:, 0].astype(np.float32)
 
-        trace["t_ingest"] = time.perf_counter()
+        if trace:
+            trace["t_ingest"] = time.perf_counter()
 
         # 2. Vectorized RMS calculation for amplitude gating
         rms_volume = np.sqrt(np.mean(audio_chunk**2))
@@ -78,7 +84,8 @@ class AudioIngestionStream:
             cents_error = calculate_pitch_error(freq)
 
         if note != "REST" and freq < 190.0 or freq > 3000.0:
-            telemetry.discard_trace()
+            if self.telemetry:
+                self.telemetry.discard_trace()
             return
 
         # 5. Thread-safe dispatch out of the high-priority callback context
@@ -89,7 +96,8 @@ class AudioIngestionStream:
             "pitch_cents_error": cents_error,
         }
 
-        trace["t_pitch"] = time.perf_counter()
+        if trace:
+            trace["t_pitch"] = time.perf_counter()
 
         self.inbound_queue.put((event, trace))
 

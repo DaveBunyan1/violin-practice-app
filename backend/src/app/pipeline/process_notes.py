@@ -3,7 +3,7 @@ import time
 from typing import Optional, Tuple
 
 from app.controllers.session_controller import SessionController
-from app.core.telemetry import telemetry
+from app.core.telemetry import DistributedTelemetryHarness
 from app.models.events import (
     PerformedNoteEvent,
     LiveDashboardMetrics,
@@ -18,6 +18,7 @@ def process_notes(
     websocket_broadcast_queue: queue.Queue[
         Tuple[WebSocketBroadcastEvent, Optional[TelemetryMeta]]
     ],
+    telemetry: Optional[DistributedTelemetryHarness] = None,
 ) -> None:
     """
     Pipeline stage:
@@ -27,18 +28,22 @@ def process_notes(
         event, trace = inbound_queue.get()
 
         try:
+
             session = controller.get_session()
 
             if not controller.is_active():
+
                 inbound_queue.task_done()
                 if trace:
-                    telemetry.complete_trace(trace)
+                    if telemetry:
+                        telemetry.complete_trace(trace)
                 continue
 
         except RuntimeError:
             inbound_queue.task_done()
             if trace:
-                telemetry.complete_trace(trace)
+                if telemetry:
+                    telemetry.complete_trace(trace)
             continue
 
         # ------------------------------------------------
@@ -97,5 +102,6 @@ def process_notes(
 
         event, trace = websocket_broadcast_queue.get()
         if trace:
-            telemetry.complete_trace(trace)
+            if telemetry:
+                telemetry.complete_trace(trace)
         inbound_queue.task_done()

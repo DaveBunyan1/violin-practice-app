@@ -1,8 +1,8 @@
 import time
 from typing import List, Optional, Callable
+from app.core.telemetry import DistributedTelemetryHarness
 from app.models.events import PitchObservationEvent, PerformedNoteEvent
 from app.models.telemetry_models import TelemetryMeta
-from app.core.telemetry import telemetry
 
 
 class NoteSegmenter:
@@ -14,8 +14,14 @@ class NoteSegmenter:
     - candidate note (potential transition)
     """
 
-    def __init__(self, stability_threshold: float = 0.1):
+    def __init__(
+        self,
+        stability_threshold: float = 0.1,
+        telemetry: Optional[DistributedTelemetryHarness] = None,
+    ):
         self.stability_threshold = stability_threshold
+        # telemetry
+        self.telemetry = telemetry
 
         # committed state
         self._current_note: Optional[str] = None
@@ -54,7 +60,8 @@ class NoteSegmenter:
         if self._current_note is None:
             self._start_new_note(note, freq, timestamp, cents_error)
             if trace:
-                telemetry.complete_trace(trace)
+                if self.telemetry:
+                    self.telemetry.complete_trace(trace)
             return
 
         # stable continuation → cancel candidate
@@ -63,7 +70,8 @@ class NoteSegmenter:
                 self._current_cents_errors.append(cents_error)
             self._clear_candidate()
             if trace:
-                telemetry.complete_trace(trace)
+                if self.telemetry:
+                    self.telemetry.complete_trace(trace)
             return
 
         # start or continue candidate
@@ -77,7 +85,8 @@ class NoteSegmenter:
         # guard
         if self._candidate_start_time is None:
             if trace:
-                telemetry.complete_trace(trace)
+                if self.telemetry:
+                    self.telemetry.complete_trace(trace)
             return
 
         # confirm stability
@@ -160,7 +169,6 @@ class NoteSegmenter:
         }
         if trace:
             trace["t_segment"] = time.perf_counter()
-            print("Trace:", trace, "\ntime.perf_counter():", time.perf_counter())
 
         self._callback(event, trace)
 

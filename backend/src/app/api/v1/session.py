@@ -4,8 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import timezone, datetime
 
+from app.core.runtime import RuntimeGraph
 from app.database import models
 from app.database.connection import get_db
+from app.dependencies.runtime import get_runtime
 from app.models.session_models import (
     EndSessionOutput,
     HistoricalSessionOutput,
@@ -13,7 +15,6 @@ from app.models.session_models import (
     StartSessionPayload,
 )
 from app.core.logging import logger
-from app.core.shared_engines import session_controller, score_engine
 from app.services.session_service import (
     create_session_history_record,
     get_historical_sessions,
@@ -23,16 +24,20 @@ router = APIRouter()
 
 
 @router.post("/start", response_model=StartSessionOutput)
-def start_session(payload: StartSessionPayload, db: Session = Depends(get_db)):
+def start_session(
+    payload: StartSessionPayload,
+    db: Session = Depends(get_db),
+    runtime: RuntimeGraph = Depends(get_runtime),
+):
     """Starts the active practice session recording window."""
-    if session_controller.is_active():
+    if runtime.session_controller.is_active():
         logger.warning("Session start rejected: session already running.")
         raise HTTPException(
             status_code=400, detail="Session is already actively running."
         )
 
     try:
-        session_controller.start_session(
+        runtime.session_controller.start_session(
             db=db,
             piece_id=payload.piece_id,
             start_bar=payload.start_bar,
@@ -45,22 +50,24 @@ def start_session(payload: StartSessionPayload, db: Session = Depends(get_db)):
 
     return StartSessionOutput(
         message="Practice session started successfully.",
-        session_active=session_controller.is_active(),
+        session_active=runtime.session_controller.is_active(),
     )
 
 
 @router.post("/end")
-def end_session(db: Session = Depends(get_db)) -> EndSessionOutput:
+def end_session(
+    db: Session = Depends(get_db), runtime: RuntimeGraph = Depends(get_runtime)
+) -> EndSessionOutput:
     """Stops the recording session and calculates the final v1.2.0 score metrics."""
-    if not session_controller.is_active():
+    if not runtime.session_controller.is_active():
         raise HTTPException(
             status_code=400, detail="No active session found to terminate."
         )
 
     try:
         # 1. Trigger the score engine calculation loop FIRST while the session is still active
-        domain_session = session_controller.get_session()
-        final_score = score_engine.compute()
+        domain_session = runtime.session_controller.get_session()
+        final_score = runtime.score_engine.compute()
 
         # 2. Extract all performed note sequences tracked in memory during this window
         performed_notes_list = domain_session.get_performed_notes()
@@ -97,7 +104,7 @@ def end_session(db: Session = Depends(get_db)) -> EndSessionOutput:
         session_id = db_session_record.id
 
         # 5. Wipe memory states in the live engine controller safely after data is on disk
-        session_controller.end_session()
+        runtime.session_controller.end_session()
 
     except RuntimeError as e:
         db.rollback()
