@@ -166,6 +166,7 @@ class NoteSegmenter:
             "end_time": end_timestamp,
             "duration": end_timestamp - self._note_start_time,
             "avg_pitch_error_cents": avg_cents_error,
+            "retry_count": 0,
         }
         if trace:
             trace["t_segment"] = time.perf_counter()

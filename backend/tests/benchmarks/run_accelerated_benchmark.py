@@ -21,7 +21,7 @@ from app.models.events import PerformedNoteEvent, PitchObservationEvent
 from app.models.telemetry_models import TelemetryMeta
 from app.pipeline.note_segmenter import NoteSegmenter
 from app.pipeline.practice_target import PracticeTarget
-from app.pipeline.process_notes import process_notes
+from app.pipeline.note_processing_worker import NoteProcessingWorker
 
 from app.pitch.autocorrelation import estimate_frequency
 from app.pitch.notes import calculate_pitch_error, freq_to_note
@@ -96,6 +96,8 @@ def execute_accelerated_run(
     pitch_queue = queue.Queue()
     segmented_queue = queue.Queue()
     broadcast_queue = queue.Queue()
+    retry_queue = queue.Queue()
+    dead_letter_queue = queue.Queue()
 
     target = PracticeTarget(mode="piece", active_piece=None)
     segmenter = NoteSegmenter(telemetry=telemetry)
@@ -107,6 +109,8 @@ def execute_accelerated_run(
         pitch_queue=pitch_queue,
         segmented_queue=segmented_queue,
         broadcast_queue=broadcast_queue,
+        retry_queue=retry_queue,
+        dead_letter_queue=dead_letter_queue,
         target=target,
         segmenter=segmenter,
         session_controller=session_controller,
@@ -127,16 +131,17 @@ def execute_accelerated_run(
         daemon=True,
     ).start()
 
-    threading.Thread(
-        target=process_notes,
-        args=(
-            runtime.session_controller,
-            runtime.segmented_queue,
-            runtime.broadcast_queue,
-            runtime.telemetry,
-        ),
-        daemon=True,
-    ).start()
+    worker = NoteProcessingWorker(
+        controller=runtime.session_controller,
+        inbound_queue=runtime.segmented_queue,
+        broadcast_queue=runtime.broadcast_queue,
+        retry_queue=runtime.retry_queue,
+        dead_letter_queue=runtime.dead_letter_queue,
+        telemetry=runtime.telemetry,
+    )
+
+    worker_thread = threading.Thread(target=worker.run, daemon=True)
+    worker_thread.start()
 
     print("Initialized threads. Beginning acceleration loop...")
     wall_start = time.perf_counter()
@@ -211,11 +216,16 @@ def execute_accelerated_run(
     runtime.pitch_queue.join()
     runtime.segmented_queue.join()
 
+    print("🛑 Signaling background worker to stop...")
+    worker.stop()
+
+    worker_thread.join(timeout=5.0)
+
     elapsed_wall_time = time.perf_counter() - wall_start
     print(f"✨ Emulation completed in {elapsed_wall_time:.2f} seconds.")
 
     # Save the file name dynamically based on total processed frames
-    filename = f"docs/{frames_sent}_frames_{settings.BUFFER_SIZE}_buffer_size.json"
+    filename = f"docs/{settings.VERSION}/{settings.VERSION}_{frames_sent}_frames_{settings.BUFFER_SIZE}_buffer_size.json"
     runtime.telemetry.stop_session(filename)
     print(f"💾 Exchanged data saved to {filename}")
 

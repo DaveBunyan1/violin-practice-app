@@ -38,15 +38,14 @@ class PerformedNoteEvent(TypedDict):
     end_time: float
 
     duration: float  # derived (end_time - start_time)
+    retry_count: int
 
 
 # 3. Session event
 class SessionStoredNote(TypedDict):
     note: str
-    frequency: float
     avg_pitch_error_cents: Optional[float]
     start_time: float  # Session-relative time (seconds from start)
-    end_time: float  # Session-relative time (seconds from start)
     duration: float
 
 

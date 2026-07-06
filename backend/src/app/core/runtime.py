@@ -38,6 +38,8 @@ class RuntimeGraph:
     broadcast_queue: queue.Queue[
         Tuple[WebSocketBroadcastEvent, Optional[TelemetryMeta]]
     ]
+    retry_queue: queue.Queue[Tuple[PerformedNoteEvent, Optional[TelemetryMeta]]]
+    dead_letter_queue: queue.Queue[Tuple[PerformedNoteEvent, Optional[TelemetryMeta]]]
 
     target: PracticeTarget
     segmenter: NoteSegmenter

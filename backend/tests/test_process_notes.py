@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock
 
-from app.pipeline.process_notes import process_notes
+from app.pipeline.note_processing_worker import process_notes
 from app.models.events import PerformedNoteEvent
 
 
@@ -36,6 +36,7 @@ def test_process_notes_happy_path():
         "end_time": 1003.0,  # 3.0s relative end
         "duration": 0.5,
         "avg_pitch_error_cents": 5.0,
+        "retry_count": 0,
     }
 
     # 🌟 THE TRICK: First call returns the event, second call crashes to break the loop

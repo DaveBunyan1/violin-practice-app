@@ -18,9 +18,9 @@ from app.models.events import (
 )
 from app.models.telemetry_models import TelemetryMeta
 from app.pipeline.ingestion import AudioIngestionStream
+from app.pipeline.note_processing_worker import NoteProcessingWorker
 from app.pipeline.note_segmenter import NoteSegmenter
 from app.pipeline.practice_target import PracticeTarget
-from app.pipeline.process_notes import process_notes
 from app.scoring.scoring_engine import ScoreEngine
 
 
@@ -46,6 +46,12 @@ async def lifespan(app: FastAPI):
     broadcast_queue: queue.Queue[
         Tuple[WebSocketBroadcastEvent, Optional[TelemetryMeta]]
     ] = queue.Queue()
+    retry_queue: queue.Queue[Tuple[PerformedNoteEvent, Optional[TelemetryMeta]]] = (
+        queue.Queue()
+    )
+    dead_letter_queue: queue.Queue[
+        Tuple[PerformedNoteEvent, Optional[TelemetryMeta]]
+    ] = queue.Queue()
 
     # 3. Instantiate Domain Components (Passing dependencies explicitly)
     target = PracticeTarget(mode="piece", active_piece=None)
@@ -58,6 +64,8 @@ async def lifespan(app: FastAPI):
         pitch_queue=pitch_queue,
         segmented_queue=segmented_queue,
         broadcast_queue=broadcast_queue,
+        retry_queue=retry_queue,
+        dead_letter_queue=dead_letter_queue,
         target=target,
         segmenter=segmenter,
         session_controller=session_controller,
@@ -100,17 +108,17 @@ async def lifespan(app: FastAPI):
         daemon=True,
     ).start()
 
-    # Thread C: Sequence Alignment & Scoring Engine (Using the original function)
-    threading.Thread(
-        target=process_notes,
-        args=(
-            runtime.session_controller,
-            runtime.segmented_queue,
-            runtime.broadcast_queue,
-            runtime.telemetry,
-        ),
-        daemon=True,
-    ).start()
+    # Thread C: Note Processing Worker
+    worker = NoteProcessingWorker(
+        controller=runtime.session_controller,
+        inbound_queue=runtime.segmented_queue,
+        broadcast_queue=runtime.broadcast_queue,
+        retry_queue=runtime.retry_queue,
+        dead_letter_queue=runtime.dead_letter_queue,
+        telemetry=runtime.telemetry,
+    )
+
+    threading.Thread(target=worker.run, daemon=True).start()
 
     yield  # FastAPI Application Runs Here
 

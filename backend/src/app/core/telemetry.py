@@ -114,7 +114,8 @@ class DistributedTelemetryHarness:
                 continue
 
     def stop_session(
-        self, export_path: str = f"docs/{settings.VERSION}_pipeline_baseline.json"
+        self,
+        export_path: str = f"docs/{settings.VERSION}/{settings.VERSION}_pipeline_baseline.json",
     ):
         self.is_running = False
         if self.consumer_thread:
