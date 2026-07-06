@@ -1,5 +1,5 @@
 {
-  "telemetry_version": "v1.9.2-dirty",
+  "telemetry_version": "1.9.0-pipeline",
   "environment": {
     "sample_rate_hz": 44100,
     "buffer_size_samples": 2048,
@@ -13,38 +13,38 @@
         "mean": 0.001,
         "std": 0.001,
         "p95": 0.002,
-        "p99": 0.002
+        "p99": 0.003
       },
       "2_pitch_detection_dsp": {
-        "mean": 0.243,
-        "std": 0.059,
-        "p95": 0.305,
-        "p99": 0.388
+        "mean": 0.246,
+        "std": 0.076,
+        "p95": 0.31,
+        "p99": 0.379
       },
       "3_note_segmenter": {
-        "mean": 0.13,
-        "std": 0.872,
-        "p95": 0.081,
-        "p99": 4.274
+        "mean": 0.055,
+        "std": 0.403,
+        "p95": 0.07,
+        "p99": 0.566
       },
       "4_process_notes": {
-        "mean": 0.036,
-        "std": 0.05,
-        "p95": 0.061,
-        "p99": 0.273
+        "mean": 0.039,
+        "std": 0.136,
+        "p95": 0.06,
+        "p99": 0.154
       },
       "5_websocket_broadcast": {
-        "mean": 0.002,
-        "std": 0.001,
+        "mean": 0.003,
+        "std": 0.002,
         "p95": 0.003,
-        "p99": 0.004
+        "p99": 0.005
       },
       "total_pipeline_lifecycle": {
-        "mean": 0.374,
-        "std": 0.821,
-        "p95": 0.413,
-        "p99": 4.072,
-        "max": 17.117
+        "mean": 0.308,
+        "std": 0.392,
+        "p95": 0.391,
+        "p99": 0.799,
+        "max": 14.667
       }
     }
   }
