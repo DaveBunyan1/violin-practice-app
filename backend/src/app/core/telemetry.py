@@ -7,10 +7,13 @@ from threading import Thread
 from pathlib import Path
 
 from app.models.telemetry_models import TelemetryMeta
+from app.core.config import settings
 
 
 class DistributedTelemetryHarness:
-    def __init__(self, sample_rate: int = 44100, buffer_size: int = 2048):
+    def __init__(
+        self, sample_rate: int = 44100, buffer_size: int = settings.BUFFER_SIZE
+    ):
         self.sample_rate = sample_rate
         self.buffer_size = buffer_size
         self.allocated_window_ms = (buffer_size / sample_rate) * 1000.0
@@ -147,7 +150,7 @@ class DistributedTelemetryHarness:
                 return round(float(np.percentile(valid_data, 99)), 3)
 
         report = {
-            "telemetry_version": "1.8.2-pipeline",
+            "telemetry_version": "1.9.0-pipeline",
             "environment": {
                 "sample_rate_hz": self.sample_rate,
                 "buffer_size_samples": self.buffer_size,

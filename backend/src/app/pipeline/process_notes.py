@@ -104,4 +104,5 @@ def process_notes(
         if trace:
             if telemetry:
                 telemetry.complete_trace(trace)
+
         inbound_queue.task_done()

@@ -2,12 +2,12 @@
   "telemetry_version": "1.8.2-pipeline",
   "environment": {
     "sample_rate_hz": 44100,
-    "buffer_size_samples": 2048,
-    "allocated_frame_window_ms": 46.44
+    "buffer_size_samples": 8192,
+    "allocated_frame_window_ms": 185.76
   },
   "pipeline_analysis_ms": {
     "total_frames": 4454,
-    "deadline_excursions": 1,
+    "deadline_excursions": 0,
     "stages": {
       "1_audio_ingestion": {
         "mean": 0.027,

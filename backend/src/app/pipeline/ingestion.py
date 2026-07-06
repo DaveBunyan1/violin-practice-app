@@ -10,10 +10,11 @@ from app.models.telemetry_models import TelemetryMeta
 from app.pitch.autocorrelation import estimate_frequency
 from app.pitch.notes import calculate_pitch_error, freq_to_note
 from app.models.events import PitchObservationEvent
+from app.core.config import settings
 
 # Domain-specific default configuration parameters
 SAMPLE_RATE = 44100
-BUFFER_SIZE = 8192  # Samples per chunk
+
 CHANNELS = 1
 AMBIENT_NOISE_THRESHOLD = 0.0001
 
@@ -110,7 +111,7 @@ class AudioIngestionStream:
 
             self._stream = sd.InputStream(
                 samplerate=self.sample_rate,
-                blocksize=BUFFER_SIZE,
+                blocksize=settings.BUFFER_SIZE,
                 channels=CHANNELS,
                 callback=self._audio_callback,
             )

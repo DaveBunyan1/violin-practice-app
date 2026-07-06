@@ -10,23 +10,30 @@ So while it showed improvement across the board:
 **v1.8.2:**
 
 ```json
-      "total_pipeline_lifecycle": {
-        "mean": 7.255,
-        "std": 3.581,
-        "p95": 14.301,
-        "p99": 20.227,
-        "max": 49.984
-      }
+"total_pipeline_lifecycle": {
+    "mean": 7.255,
+    "std": 3.581,
+    "p95": 14.301,
+    "p99": 20.227,
+    "max": 49.984
+}
 ```
 
 **v1.9.0:**
 
 ```json
-      "total_pipeline_lifecycle": {
-        "mean": 6.211,
-        "std": 3.131,
-        "p95": 11.831,
-        "p99": 17.226,
-        "max": 26.992
-      }
+"total_pipeline_lifecycle": {
+    "mean": 6.211,
+    "std": 3.131,
+    "p95": 11.831,
+    "p99": 17.226,
+    "max": 26.992
+}
 ```
+
+# TODO
+
+I didn't feel statistacally confident that one was better than the other. So while the change between architecture was required in this case either way, this led me to the next decision, which is to create an accelerated benchmark harness, being able to process a larger amount of frames in a shorter amount of time.
+
+Being new to audio processing, and unsure how many samples I need for a reliably accurate statistical decision, I plotted 50k, 100k and 1 million to see where the convergence of all stats happened. I did the first test at 8192 buffer size to make sure it was comparable to my live system and had the following results for p99:
+![alt text](../backend/docs/8192_benchmark_scaling_profiles.png)
