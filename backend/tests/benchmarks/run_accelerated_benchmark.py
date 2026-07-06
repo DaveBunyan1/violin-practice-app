@@ -221,6 +221,11 @@ def execute_accelerated_run(
 
     worker_thread.join(timeout=5.0)
 
+    if worker_thread.is_alive():
+        print("⚠️ Warning: Worker thread did not exit cleanly within timeout.")
+    else:
+        print("✅ Worker thread shut down successfully.")
+
     elapsed_wall_time = time.perf_counter() - wall_start
     print(f"✨ Emulation completed in {elapsed_wall_time:.2f} seconds.")
 
