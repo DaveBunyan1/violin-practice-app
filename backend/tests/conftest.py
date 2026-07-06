@@ -9,11 +9,10 @@ from app.database.connection import Base, get_db
 from app.main import app
 from app.pipeline.ingestion import AudioIngestionStream
 from tests.utils.audio_harness import AudioStreamTestHarness
-
-TEST_DATABASE_URL = "sqlite:///./test.db"
+from app.core.config import settings
 
 engine = create_engine(
-    TEST_DATABASE_URL,
+    settings.TEST_DATABASE_URL,
     connect_args={
         "check_same_thread": False
     },  # Required for SQLite async thread handling

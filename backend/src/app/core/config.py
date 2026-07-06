@@ -33,6 +33,16 @@ class Settings(BaseSettings):
         description="The primary database connection string.",
     )
 
+    TEST_DATABASE_URL: str = Field(
+        default="sqlite:///./test.db",
+        description="The test database connection string.",
+    )
+
+    BENCHMARK_DATABASE_URL: str = Field(
+        default="sqlite:///:memory:",
+        description="The benchmark database connection string.",
+    )
+
     # --- Audio Ingestion Stream Settings ---
     SAMPLE_RATE: int = Field(
         default=44100, description="Audio capture sampling rate in Hz."

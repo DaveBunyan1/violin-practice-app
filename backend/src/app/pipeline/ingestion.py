@@ -12,12 +12,6 @@ from app.pitch.notes import calculate_pitch_error, freq_to_note
 from app.models.events import PitchObservationEvent
 from app.core.config import settings
 
-# Domain-specific default configuration parameters
-SAMPLE_RATE = 44100
-
-CHANNELS = 1
-AMBIENT_NOISE_THRESHOLD = 0.0001
-
 
 class AudioIngestionStream:
     """
@@ -31,7 +25,7 @@ class AudioIngestionStream:
             Tuple[PitchObservationEvent, Optional[TelemetryMeta]]
         ],
         telemetry: Optional[DistributedTelemetryHarness] = None,
-        sample_rate: int = SAMPLE_RATE,
+        sample_rate: int = settings.SAMPLE_RATE,
         ambient_noise_threshold: float = AMBIENT_NOISE_THRESHOLD,
         clock: Callable[[], float] = time.perf_counter,
     ):
@@ -112,7 +106,7 @@ class AudioIngestionStream:
             self._stream = sd.InputStream(
                 samplerate=self.sample_rate,
                 blocksize=settings.BUFFER_SIZE,
-                channels=CHANNELS,
+                channels=settings.CHANNELS,
                 callback=self._audio_callback,
             )
 

@@ -19,7 +19,6 @@ from app.database.connection import Base
 from app.database.models import RepertoireNote, RepertoirePiece
 from app.models.events import PerformedNoteEvent, PitchObservationEvent
 from app.models.telemetry_models import TelemetryMeta
-from app.pipeline.ingestion import AMBIENT_NOISE_THRESHOLD
 from app.pipeline.note_segmenter import NoteSegmenter
 from app.pipeline.practice_target import PracticeTarget
 from app.pipeline.process_notes import process_notes
@@ -29,11 +28,10 @@ from app.pitch.notes import calculate_pitch_error, freq_to_note
 from app.scoring.scoring_engine import ScoreEngine
 from app.core.config import settings
 
-DATABASE_URL = "sqlite:///:memory:"
-SAMPLE_RATE = 44100
 
-
-def load_and_normalize_wav(wav_path: str, target_sr: int = SAMPLE_RATE) -> np.ndarray:
+def load_and_normalize_wav(
+    wav_path: str, target_sr: int = settings.SAMPLE_RATE
+) -> np.ndarray:
     """Loads a WAV file, converts it to mono float32 normalized, and verifies sample rate."""
     sr, data = wavfile.read(wav_path)
     if sr != target_sr:
@@ -59,7 +57,9 @@ def execute_accelerated_run(
 ) -> float:
     """Instantiates a clean runtime graph and pumps frames through at maximum CPU speed."""
     # 1. Initialize production runtime components
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+    engine = create_engine(
+        settings.DATABASE_URL, connect_args={"check_same_thread": False}
+    )
     SessionBenchmark = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     Base.metadata.create_all(bind=engine)
 
@@ -172,12 +172,12 @@ def execute_accelerated_run(
         rms_volume = np.sqrt(np.mean(audio_chunk**2))
         current_timestamp = synthetic_time
 
-        if rms_volume < AMBIENT_NOISE_THRESHOLD:
+        if rms_volume < settings.AMBIENT_NOISE_THRESHOLD:
             freq = 0.0
             note = "REST"
             cents_error = None
         else:
-            freq = float(estimate_frequency(audio_chunk, SAMPLE_RATE))
+            freq = float(estimate_frequency(audio_chunk, settings.SAMPLE_RATE))
             note = freq_to_note(freq)
             cents_error = calculate_pitch_error(freq)
 
@@ -252,5 +252,5 @@ if __name__ == "__main__":
         # 5. Run the target execution
         print(f"\n--- 🚀 Starting Test: {target_frames:,} Frames ---")
         execute_accelerated_run(
-            raw_audio, sample_rate=SAMPLE_RATE, max_frames=target_frames
+            raw_audio, sample_rate=settings.SAMPLE_RATE, max_frames=target_frames
         )

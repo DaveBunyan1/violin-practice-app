@@ -12,7 +12,9 @@ from app.core.config import settings
 
 class DistributedTelemetryHarness:
     def __init__(
-        self, sample_rate: int = 44100, buffer_size: int = settings.BUFFER_SIZE
+        self,
+        sample_rate: int = settings.SAMPLE_RATE,
+        buffer_size: int = settings.BUFFER_SIZE,
     ):
         self.sample_rate = sample_rate
         self.buffer_size = buffer_size
@@ -111,7 +113,9 @@ class DistributedTelemetryHarness:
             except Exception:
                 continue
 
-    def stop_session(self, export_path: str = "docs/v1.9.0_pipeline_baseline.json"):
+    def stop_session(
+        self, export_path: str = f"docs/{settings.VERSION}_pipeline_baseline.json"
+    ):
         self.is_running = False
         if self.consumer_thread:
             self.consumer_thread.join()
@@ -150,7 +154,7 @@ class DistributedTelemetryHarness:
                 return round(float(np.percentile(valid_data, 99)), 3)
 
         report = {
-            "telemetry_version": "1.9.0-pipeline",
+            "telemetry_version": f"{settings.VERSION}",
             "environment": {
                 "sample_rate_hz": self.sample_rate,
                 "buffer_size_samples": self.buffer_size,
