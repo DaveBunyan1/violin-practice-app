@@ -6,10 +6,8 @@ import subprocess
 def get_git_version(fallback: str = "1.9.0-pipeline") -> str:
     """Dynamically attempts to fetch the latest Git tag description."""
     try:
-        # Runs 'git describe --tags --always --dirty'
-        # --dirty adds a '-dirty' flag if you have uncommitted local changes
         result = subprocess.run(
-            ["git", "describe", "--tags", "--always", "--dirty"],
+            ["git", "describe", "--tags", "--abbrev=0"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,

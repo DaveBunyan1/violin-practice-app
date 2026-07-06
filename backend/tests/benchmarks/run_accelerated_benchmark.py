@@ -226,6 +226,15 @@ def execute_accelerated_run(
     else:
         print("✅ Worker thread shut down successfully.")
 
+    print("🔒 Releasing database session locks...")
+    try:
+        # If your 'db' variable is a standard Session instance:
+        db.commit()
+        db.close()
+    except Exception:
+        db.rollback()
+        db.close()
+
     elapsed_wall_time = time.perf_counter() - wall_start
     print(f"✨ Emulation completed in {elapsed_wall_time:.2f} seconds.")
 

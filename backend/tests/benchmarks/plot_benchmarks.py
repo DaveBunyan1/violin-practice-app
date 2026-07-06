@@ -14,9 +14,9 @@ def load_p99_metrics(folder_path: str):
 
     # Mapping to look for specific target files
     files = {
-        "50k Frames": f"50000_frames_{settings.BUFFER_SIZE}_buffer_size.json",
-        "100k Frames": f"100000_frames_{settings.BUFFER_SIZE}_buffer_size.json",
-        "1M Frames": f"1000000_frames_{settings.BUFFER_SIZE}_buffer_size.json",
+        "50k Frames": f"{settings.VERSION}/{settings.VERSION}_50000_frames_{settings.BUFFER_SIZE}_buffer_size.json",
+        "100k Frames": f"{settings.VERSION}/{settings.VERSION}_100000_frames_{settings.BUFFER_SIZE}_buffer_size.json",
+        "1M Frames": f"{settings.VERSION}/{settings.VERSION}_1000000_frames_{settings.BUFFER_SIZE}_buffer_size.json",
     }
 
     for run_label, filename in files.items():
@@ -71,7 +71,7 @@ def generate_benchmark_chart():
 
     # 4. Draw the Real-Time Budget Deadline Constraint line
     plt.axhline(
-        y=settings.BUFFER_SIZE / settings.SAMPLE_RATE,
+        y=settings.BUFFER_SIZE / settings.SAMPLE_RATE * 1000,
         color="crimson",
         linestyle="--",
         linewidth=1.5,
@@ -102,7 +102,8 @@ def generate_benchmark_chart():
 
     # 6. Export directly to your project workspace
     output_image_path = os.path.join(
-        results_dir, f"{settings.BUFFER_SIZE}_benchmark_scaling_profiles.png"
+        results_dir,
+        f"{settings.VERSION}/{settings.VERSION}_{settings.BUFFER_SIZE}_benchmark_scaling_profiles.png",
     )
     plt.savefig(output_image_path, dpi=300)
     print(f"🎉 Chart successfully compiled and saved to: {output_image_path}")
