@@ -26,7 +26,7 @@ class AudioIngestionStream:
         ],
         telemetry: Optional[DistributedTelemetryHarness] = None,
         sample_rate: int = settings.SAMPLE_RATE,
-        ambient_noise_threshold: float = AMBIENT_NOISE_THRESHOLD,
+        ambient_noise_threshold: float = settings.AMBIENT_NOISE_THRESHOLD,
         clock: Callable[[], float] = time.perf_counter,
     ):
         self.inbound_queue = inbound_queue
