@@ -25,9 +25,13 @@ As a violin student I repeatedly hit the same problems:
 
 The original goal was simple: build something that could listen to me play and give objective feedback.
 
-The engineering journey that followed became considerably more interesting than that initial goal. What began as a relatively simple application grew into a real-time audio-processing pipeline involving microphone capture, pitch estimation, note segmentation, alignment, scoring, event-driven communication, telemetry, and a browser-based dashboard.
+What quickly became clear, however, is that music does not map perfectly onto a purely mathematical representation. Perfect pitch and timing are useful targets, but aiming to turn a human player into a flawless “human metronome” is neither realistic nor musically desirable. Version 1 of the app leans too heavily in that direction.
 
-v1 ultimately became as much a learning project in software engineering as it was a violin practice tool.
+Many of the changes planned for v2 are therefore deliberately personal. Being left-handed is the single largest practical constraint on my own technique, so greater attention will be given to bowing, string crossings, and related physical aspects of playing. At the same time, the broader design is informed by lessons from building the Chinese Vocabulary Training app and from my own experience learning both the violin and Chinese: progress is usually made by focusing on the specific things one currently struggles with, rather than by repeatedly evaluating complete performances.
+
+The intention is not to replace traditional or accepted musical pedagogy. The app should remain an addition to learning — a sometimes harsh, still-naïve teacher that can highlight problems and track improvement — rather than a substitute for a real teacher, a method book, or deliberate practice away from the screen. Ideally, a student should still be able to practise a scale, a bar, a passage, or an entire piece effectively without the application running at all.
+
+v1 ultimately became as much a learning project in software engineering as it was a violin practice tool. That dual purpose continues into v2.
 
 ---
 
@@ -241,7 +245,3 @@ The goal is not simply to produce a technically impressive violin-analysis appli
 ---
 
 Built as a deliberate practice project — both for the violin and for software engineering.
-
-```
-
-```
