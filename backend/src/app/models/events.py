@@ -62,7 +62,6 @@ class AlignedNote(TypedDict):
 
     expected_time: float
     performed_start_time: Optional[float]
-    performed_end_time: Optional[float]
 
     pitch_error_cents: Optional[float]
     time_error: Optional[float]
