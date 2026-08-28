@@ -25,7 +25,7 @@ As a violin student I repeatedly hit the same problems:
 
 The original goal was simple: build something that could listen to me play and give objective feedback.
 
-What quickly became clear, however, is that music does not map perfectly onto a purely mathematical representation. Perfect pitch and timing are useful targets, but aiming to turn a human player into a flawless “human metronome” is neither realistic nor musically desirable. Version 1 of the app leans too heavily in that direction.
+What quickly became clear, however, is that music does not map perfectly onto a purely mathematical representation. Perfect pitch and timing are useful targets, but aiming to turn a human player into a flawless “human metronome” (a trap well-known to anyone who has watched Your Lie in April) is neither realistic nor musically desirable. Version 1 of the app leans too heavily in that direction.
 
 Many of the changes planned for v2 are therefore deliberately personal. Being left-handed is the single largest practical constraint on my own technique, so greater attention will be given to bowing, string crossings, and related physical aspects of playing. At the same time, the broader design is informed by lessons from building the Chinese Vocabulary Training app and from my own experience learning both the violin and Chinese: progress is usually made by focusing on the specific things one currently struggles with, rather than by repeatedly evaluating complete performances.
 
