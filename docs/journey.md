@@ -37,3 +37,6 @@ I didn't feel statistacally confident that one was better than the other. So whi
 
 Being new to audio processing, and unsure how many samples I need for a reliably accurate statistical decision, I plotted 50k, 100k and 1 million to see where the convergence of all stats happened. I did the first test at 8192 buffer size to make sure it was comparable to my live system and had the following results for p99:
 ![alt text](../backend/docs/8192_benchmark_scaling_profiles.png)
+
+v1.9.2
+Changing to a note processing worker improved the frames per second of the accelerated benchmark test from 400 to around 3800.
